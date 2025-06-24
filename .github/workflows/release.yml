@@ -1,0 +1,92 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+    branches:
+      - main
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: ["3.11", "3.12"]
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+
+      - name: Set up Python ${{ matrix.python-version }}
+        run: uv python install ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          uv sync --group dev
+
+      - name: Run tests
+        run: |
+          uv run pytest tests/ -v --cov=matplot_cli --cov-report=term-missing
+
+      - name: Run type check
+        run: |
+          uv run python -m py_compile src/matplot_cli/*.py
+
+  release:
+    needs: test
+    runs-on: ubuntu-latest
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    concurrency: release
+    permissions:
+      id-token: write
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: |
+          uv sync --group dev
+
+      - name: Python Semantic Release
+        id: release
+        run: |
+          uv run semantic-release version
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # PyPI publishing is disabled in pyproject.toml (upload_to_pypi = false)
+      # Uncomment the following steps if you want to publish to PyPI:
+      #
+      # - name: Check if release was created
+      #   id: check_release
+      #   run: |
+      #     if [ -d "dist" ] && [ "$(ls -A dist)" ]; then
+      #       echo "released=true" >> $GITHUB_OUTPUT
+      #     else
+      #       echo "released=false" >> $GITHUB_OUTPUT
+      #     fi
+      #
+      # - name: Publish package distributions to PyPI
+      #   uses: pypa/gh-action-pypi-publish@release/v1
+      #   if: steps.check_release.outputs.released == 'true'
