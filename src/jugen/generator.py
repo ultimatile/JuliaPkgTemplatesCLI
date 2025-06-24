@@ -14,7 +14,7 @@ class JuliaPackageGenerator:
 
     def __init__(self):
         self.templates_dir = Path(__file__).parent / "templates"
-        self.scripts_dir = Path(__file__).parent.parent.parent / "scripts"
+        self.scripts_dir = Path(__file__).parent / "scripts"
 
         # Initialize Jinja2 environment
         self.jinja_env = Environment(
@@ -207,4 +207,3 @@ class JuliaPackageGenerator:
             dependencies["mise"] = False
 
         return dependencies
-
