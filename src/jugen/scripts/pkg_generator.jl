@@ -8,8 +8,34 @@ Called from Python jugen CLI tool
 using Pkg
 using PkgTemplates
 
+println("Loading PkgTemplates.jl...")
+
+function create_license_plugin(license_name::String)
+  """Create License plugin with specified license name"""
+  license_map = Dict(
+    "MIT" => () -> License(; name="MIT"),
+    "Apache-2.0" => () -> License(; name="Apache-2.0"),
+    "BSD-3-Clause" => () -> License(; name="BSD-3-Clause"),
+    "GPL-3.0" => () -> License(; name="GPL-3.0")
+  )
+
+  creator = get(license_map, license_name, () -> License(; name="MIT"))
+  return creator()
+end
+
 function parse_plugins(plugins_str::String)
   """Parse plugins string from Python and return Julia array"""
+  # Plugin mapping table
+  plugin_patterns = Dict(
+    r"Git.*manifest=true" => () -> Git(; manifest=true),
+    r"GitHubActions\(\)" => () -> GitHubActions(),
+    r"Codecov\(\)" => () -> Codecov(),
+    r"Documenter\{GitHubActions\}\(\)" => () -> Documenter{GitHubActions}(),
+    r"Develop\(\)" => () -> Develop(),
+    r"TagBot\(\)" => () -> TagBot(),
+    r"CompatHelper\(\)" => () -> CompatHelper()
+  )
+
   # Remove brackets and split by comma
   plugins_str = strip(plugins_str, ['[', ']'])
   plugin_strs = split(plugins_str, ',')
@@ -21,41 +47,29 @@ function parse_plugins(plugins_str::String)
       continue
     end
 
-    # Parse different plugin types
+    # Handle License plugin specially (requires parameter extraction)
     if occursin("License", plugin_str)
-      # Extract license name: License(; name="MIT")
       license_match = match(r"License\(;\s*name=\"(\w+)\"\)", plugin_str)
       if license_match !== nothing
         license_name = license_match.captures[1]
-        if license_name == "MIT"
-          push!(plugins, License(; name="MIT"))
-        elseif license_name == "Apache-2.0"
-          push!(plugins, License(; name="Apache-2.0"))
-        elseif license_name == "BSD-3-Clause"
-          push!(plugins, License(; name="BSD-3-Clause"))
-        elseif license_name == "GPL-3.0"
-          push!(plugins, License(; name="GPL-3.0"))
-        else
-          push!(plugins, License(; name="MIT"))  # Default fallback
-        end
+        push!(plugins, create_license_plugin(license_name))
       else
-        push!(plugins, License(; name="MIT"))  # Default fallback
+        push!(plugins, create_license_plugin("MIT"))  # Default fallback
       end
-    elseif occursin("Git", plugin_str) && occursin("manifest=true", plugin_str)
-      push!(plugins, Git(; manifest=true))
-    elseif occursin("GitHubActions()", plugin_str)
-      push!(plugins, GitHubActions())
-    elseif occursin("Codecov()", plugin_str)
-      push!(plugins, Codecov())
-    elseif occursin("Documenter{GitHubActions}()", plugin_str)
-      push!(plugins, Documenter{GitHubActions}())
-    elseif occursin("Develop()", plugin_str)
-      push!(plugins, Develop())
-    elseif occursin("TagBot()", plugin_str)
-      push!(plugins, TagBot())
-    elseif occursin("CompatHelper()", plugin_str)
-      push!(plugins, CompatHelper())
-    else
+      continue
+    end
+
+    # Check against plugin patterns table
+    matched = false
+    for (pattern, creator) in plugin_patterns
+      if occursin(pattern, plugin_str)
+        push!(plugins, creator())
+        matched = true
+        break
+      end
+    end
+
+    if !matched
       @warn "Unknown plugin: $plugin_str"
     end
   end
