@@ -29,7 +29,7 @@ class TestEndToEndWorkflows:
         )
         
         # Create expected package directory structure
-        package_dir = temp_dir / f"{package_name}.jl"
+        package_dir = temp_dir / package_name
         package_dir.mkdir()
         (package_dir / "src").mkdir()
         (package_dir / "test").mkdir()
@@ -57,7 +57,9 @@ class TestEndToEndWorkflows:
         assert "julia" in call_args
         assert package_name in call_args
         assert "Integration Test Author" in call_args
-        assert str(temp_dir) in call_args
+        # Check that some version of temp_dir path is in the args (handle /private prefix on macOS)
+        temp_dir_found = any(str(temp_dir) in arg or str(temp_dir.resolve()) in arg for arg in call_args)
+        assert temp_dir_found
     
     @patch('jugen.generator.subprocess.run')
     def test_config_then_create_workflow(self, mock_subprocess, temp_dir):
@@ -72,7 +74,7 @@ class TestEndToEndWorkflows:
         )
         
         # Create expected package directory
-        package_dir = temp_dir / "ConfiguredPackage.jl"
+        package_dir = temp_dir / "ConfiguredPackage"
         package_dir.mkdir()
         
         with runner.isolated_filesystem():
@@ -109,7 +111,7 @@ class TestEndToEndWorkflows:
             stderr=""
         )
         
-        package_dir = temp_dir / "MinimalPackage.jl"
+        package_dir = temp_dir / "MinimalPackage"
         package_dir.mkdir()
         
         result = runner.invoke(main, [
@@ -144,7 +146,7 @@ class TestEndToEndWorkflows:
             stderr=""
         )
         
-        package_dir = temp_dir / "FullPackage.jl"
+        package_dir = temp_dir / "FullPackage"
         package_dir.mkdir()
         
         result = runner.invoke(main, [
@@ -237,7 +239,7 @@ class TestEndToEndWorkflows:
         )
         
         # Create package directory
-        package_dir = temp_dir / f"{package_name}.jl"
+        package_dir = temp_dir / package_name
         package_dir.mkdir()
         
         # Mock mise template
@@ -260,21 +262,22 @@ class TestEndToEndWorkflows:
         runner = CliRunner()
         
         with patch('jugen.generator.subprocess.run') as mock_subprocess:
-            mock_subprocess.return_value = Mock(
-                returncode=0,
-                stdout="Package created successfully",
-                stderr=""
-            )
-            
-            package_dir = temp_dir / "InteractivePackage.jl"
-            package_dir.mkdir()
-            
-            # Test that prompt appears when no author is provided
-            result = runner.invoke(main, [
-                'create', 'InteractivePackage',
-                '--output-dir', str(temp_dir)
-            ], input='Interactive Author\n')
-            
-            assert result.exit_code == 0
-            assert "Author name:" in result.output
-            assert "Author: Interactive Author" in result.output
+            with patch('jugen.cli.load_config', return_value={}):
+                mock_subprocess.return_value = Mock(
+                    returncode=0,
+                    stdout="Package created successfully",
+                    stderr=""
+                )
+                
+                package_dir = temp_dir / "InteractivePackage"
+                package_dir.mkdir()
+                
+                # Test that prompt appears when no author is provided
+                result = runner.invoke(main, [
+                    'create', 'InteractivePackage',
+                    '--output-dir', str(temp_dir)
+                ], input='Interactive Author\n')
+                
+                assert result.exit_code == 0
+                assert "Author name:" in result.output
+                assert "Author: Interactive Author" in result.output

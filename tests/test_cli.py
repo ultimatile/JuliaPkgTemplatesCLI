@@ -84,7 +84,7 @@ class TestConfigFunctions:
         test_config = {"default": {"author": "Test Author", "license": "MIT"}}
         
         with patch('jugen.cli.get_config_path', return_value=config_file):
-            with patch('jugen.cli.tomli_w', side_effect=ImportError):
+            with patch('tomli_w.dump', side_effect=ImportError):
                 save_config(test_config)
         
         # Verify fallback file was created

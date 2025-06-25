@@ -209,9 +209,10 @@ class TestJuliaPackageGenerator:
         package_name = "TestPackage"
         
         # Mock subprocess error
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, ["julia"], stdout="", stderr="Some warning"
-        )
+        error = subprocess.CalledProcessError(1, ["julia"])
+        error.stdout = ""
+        error.stderr = "Some warning"
+        mock_run.side_effect = error
         
         # Create the package directory (successful despite stderr)
         package_dir = temp_dir / package_name
@@ -232,9 +233,10 @@ class TestJuliaPackageGenerator:
         """Test real Julia script error"""
         generator = JuliaPackageGenerator()
         
-        mock_run.side_effect = subprocess.CalledProcessError(
-            1, ["julia"], stdout="Error creating package: PkgTemplates error", stderr=""
-        )
+        error = subprocess.CalledProcessError(1, ["julia"])
+        error.stdout = "Error creating package: PkgTemplates error"
+        error.stderr = ""
+        mock_run.side_effect = error
         
         with patch.object(generator, 'scripts_dir', temp_dir):
             julia_script = temp_dir / "pkg_generator.jl"
