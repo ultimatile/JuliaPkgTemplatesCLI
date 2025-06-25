@@ -3,33 +3,31 @@ name = "jugen"
 version = "0.1.0"
 description = "Julia package generator with PkgTemplates.jl and mise tasks integration"
 readme = "README.md"
-authors = [
-    {name = "ultimatile"}
-]
+authors = [{ name = "ultimatile" }]
 classifiers = [
-    "Development Status :: 4 - Beta",
-    "Intended Audience :: Developers",
-    "License :: OSI Approved :: MIT License",
-    "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.8",
-    "Programming Language :: Python :: 3.9",
-    "Programming Language :: Python :: 3.10",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
-    "Topic :: Software Development :: Code Generators",
+  "Development Status :: 4 - Beta",
+  "Intended Audience :: Developers",
+  "License :: OSI Approved :: MIT License",
+  "Programming Language :: Python :: 3",
+  "Programming Language :: Python :: 3.8",
+  "Programming Language :: Python :: 3.9",
+  "Programming Language :: Python :: 3.10",
+  "Programming Language :: Python :: 3.11",
+  "Programming Language :: Python :: 3.12",
+  "Topic :: Software Development :: Code Generators",
 ]
 requires-python = ">=3.8"
 dependencies = [
-    "click>=8.0.0",
-    "jinja2>=3.0.0",
-    "tomli>=2.0.0;python_version<'3.11'",
-    "tomli-w>=1.0.0",
+  "click>=8.0.0",
+  "jinja2>=3.0.0",
+  "tomli>=2.0.0;python_version<'3.11'",
+  "tomli-w>=1.0.0",
 ]
 
 [project.urls]
-Homepage = "https://github.com/ultimatile/JuliaProjectTemplate.jl"
-Repository = "https://github.com/ultimatile/JuliaProjectTemplate.jl"
-Issues = "https://github.com/ultimatile/JuliaProjectTemplate.jl/issues"
+Homepage = "https://github.com/ultimatile/jugen"
+Repository = "https://github.com/ultimatile/jugen"
+Issues = "https://github.com/ultimatile/jugen/issues"
 
 [project.scripts]
 jugen = "jugen.cli:main"
