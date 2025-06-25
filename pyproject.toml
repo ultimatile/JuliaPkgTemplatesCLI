@@ -1,7 +1,7 @@
 [project]
 name = "jugen"
 version = "0.1.0"
-description = "Julia package generator with PkgTemplates.jl and mise tasks integration"
+description = "Julia package template generator with PkgTemplates.jl and mise tasks integration"
 readme = "README.md"
 authors = [{ name = "ultimatile" }]
 classifiers = [

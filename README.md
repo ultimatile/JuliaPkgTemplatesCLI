@@ -1,3 +1,3 @@
 # jugen
 
-Julia package generator with PkgTemplates.jl and mise tasks integration
+Julia package template generator with PkgTemplates.jl and mise tasks integration
