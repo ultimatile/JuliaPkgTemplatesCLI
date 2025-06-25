@@ -147,7 +147,7 @@ class JuliaPackageGenerator:
 
         except subprocess.CalledProcessError as e:
             # Check if the error is actually a failure by looking for error indicators
-            if "❌ Error creating package:" in e.stdout or "Error:" in e.stdout:
+            if "Error creating package:" in e.stdout or "Error:" in e.stdout:
                 error_msg = f"Julia script failed: {e.stdout}"
                 if "PkgTemplates" in e.stderr:
                     error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
