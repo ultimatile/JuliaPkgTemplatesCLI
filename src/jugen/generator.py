@@ -33,6 +33,7 @@ class JuliaPackageGenerator:
         with_docs: bool = True,
         with_ci: bool = True,
         with_codecov: bool = True,
+        formatter_style: str = "nostyle",
     ) -> Path:
         """
         Create a new Julia package using PkgTemplates.jl
@@ -46,6 +47,7 @@ class JuliaPackageGenerator:
             with_docs: Include documentation
             with_ci: Include CI/CD
             with_codecov: Include Codecov
+            formatter_style: JuliaFormatter style (nostyle, sciml, blue, yas)
 
         Returns:
             Path to the created package directory
@@ -57,7 +59,7 @@ class JuliaPackageGenerator:
 
         # Determine plugins based on template type
         plugins = self._get_plugins(
-            template, license_type, with_docs, with_ci, with_codecov
+            template, license_type, with_docs, with_ci, with_codecov, formatter_style
         )
 
         # Call Julia script to create package
@@ -77,11 +79,13 @@ class JuliaPackageGenerator:
         with_docs: bool,
         with_ci: bool,
         with_codecov: bool,
+        formatter_style: str,
     ) -> Dict[str, Any]:
         """Get PkgTemplates.jl plugins configuration"""
         base_plugins = [
             f'License(; name="{license_type}")',
             "Git(; manifest=true)",
+            f'Formatter(; style="{formatter_style}")',
         ]
 
         if template == "minimal":

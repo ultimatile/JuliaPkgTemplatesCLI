@@ -59,6 +59,18 @@ function parse_plugins(plugins_str::String)
       continue
     end
 
+    # Handle Formatter plugin specially (requires parameter extraction)
+    if occursin("Formatter", plugin_str)
+      formatter_match = match(r"Formatter\(;\s*style=\"(\w+)\"\)", plugin_str)
+      if formatter_match !== nothing
+        style = formatter_match.captures[1]
+        push!(plugins, Formatter(; style=style))
+      else
+        push!(plugins, Formatter())  # Default nostyle
+      end
+      continue
+    end
+
     # Check against plugin patterns table
     matched = false
     for (pattern, creator) in plugin_patterns

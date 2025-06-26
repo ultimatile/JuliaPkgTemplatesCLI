@@ -112,6 +112,11 @@ def main():
     default=True,
     help="Include Codecov integration (default: yes)",
 )
+@click.option(
+    "--formatter-style",
+    type=click.Choice(["nostyle", "sciml", "blue", "yas"]),
+    help="JuliaFormatter style (default: nostyle or config value)",
+)
 @click.pass_context
 def create(
     ctx: click.Context,
@@ -123,6 +128,7 @@ def create(
     with_docs: bool,
     with_ci: bool,
     with_codecov: bool,
+    formatter_style: Optional[str],
 ):
     """Create a new Julia package"""
 
@@ -155,6 +161,9 @@ def create(
     if template is None:
         template = defaults.get("template", "standard")
 
+    if formatter_style is None:
+        formatter_style = defaults.get("formatter_style", "nostyle")
+
     click.echo(f"Creating Julia package: {package_name}")
     click.echo(f"Author: {author}")
     click.echo(f"Template: {template}")
@@ -171,6 +180,7 @@ def create(
             with_docs=with_docs,
             with_ci=with_ci,
             with_codecov=with_codecov,
+            formatter_style=formatter_style,
         )
 
         click.echo(f"\nPackage created successfully at: {package_dir}")
@@ -197,7 +207,12 @@ def create(
     type=click.Choice(["minimal", "standard", "full"]),
     help="Default template type",
 )
-def config(author: Optional[str], license: Optional[str], template: Optional[str]):
+@click.option(
+    "--formatter-style",
+    type=click.Choice(["nostyle", "sciml", "blue", "yas"]),
+    help="Default JuliaFormatter style",
+)
+def config(author: Optional[str], license: Optional[str], template: Optional[str], formatter_style: Optional[str]):
     """Configure default settings"""
     config = load_config()
 
@@ -216,6 +231,10 @@ def config(author: Optional[str], license: Optional[str], template: Optional[str
     if template:
         config["default"]["template"] = template
         click.echo(f"Set default template: {template}")
+
+    if formatter_style:
+        config["default"]["formatter_style"] = formatter_style
+        click.echo(f"Set default formatter style: {formatter_style}")
 
     # Save config
     save_config(config)

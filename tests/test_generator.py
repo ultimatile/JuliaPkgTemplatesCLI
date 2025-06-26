@@ -30,12 +30,14 @@ class TestJuliaPackageGenerator:
             license_type="MIT",
             with_docs=True,
             with_ci=True,
-            with_codecov=True
+            with_codecov=True,
+            formatter_style="nostyle"
         )
         
         expected_plugins = [
             'License(; name="MIT")',
-            "Git(; manifest=true)"
+            "Git(; manifest=true)",
+            'Formatter(; style="nostyle")'
         ]
         
         assert plugins["plugins"] == expected_plugins
@@ -51,12 +53,14 @@ class TestJuliaPackageGenerator:
             license_type="Apache-2.0",
             with_docs=True,
             with_ci=True,
-            with_codecov=True
+            with_codecov=True,
+            formatter_style="sciml"
         )
         
         expected_plugins = [
             'License(; name="Apache-2.0")',
             "Git(; manifest=true)",
+            'Formatter(; style="sciml")',
             "GitHubActions()",
             "Codecov()"
         ]
@@ -73,12 +77,14 @@ class TestJuliaPackageGenerator:
             license_type="MIT",
             with_docs=True,
             with_ci=False,
-            with_codecov=False
+            with_codecov=False,
+            formatter_style="blue"
         )
         
         expected_plugins = [
             'License(; name="MIT")',
-            "Git(; manifest=true)"
+            "Git(; manifest=true)",
+            'Formatter(; style="blue")'
         ]
         
         assert plugins["plugins"] == expected_plugins
@@ -92,12 +98,14 @@ class TestJuliaPackageGenerator:
             license_type="BSD-3-Clause",
             with_docs=True,
             with_ci=True,
-            with_codecov=True
+            with_codecov=True,
+            formatter_style="yas"
         )
         
         expected_plugins = [
             'License(; name="BSD-3-Clause")',
             "Git(; manifest=true)",
+            'Formatter(; style="yas")',
             "GitHubActions()",
             "Codecov()",
             "Documenter{GitHubActions}()",
@@ -116,7 +124,8 @@ class TestJuliaPackageGenerator:
             license_type="MIT",
             with_docs=False,
             with_ci=True,
-            with_codecov=True
+            with_codecov=True,
+            formatter_style="nostyle"
         )
         
         # Should not include Documenter
@@ -134,7 +143,8 @@ class TestJuliaPackageGenerator:
                 license_type="MIT",
                 with_docs=True,
                 with_ci=True,
-                with_codecov=True
+                with_codecov=True,
+                formatter_style="nostyle"
             )
     
     @patch('subprocess.run')
@@ -338,7 +348,8 @@ class TestJuliaPackageGenerator:
             license_type="MIT",
             with_docs=True,
             with_ci=True,
-            with_codecov=True
+            with_codecov=True,
+            formatter_style="nostyle"
         )
         
         assert result == package_dir
@@ -353,6 +364,7 @@ class TestJuliaPackageGenerator:
         # Verify plugins were configured correctly
         plugins = call_args[0][3]
         assert 'License(; name="MIT")' in plugins["plugins"]
+        assert 'Formatter(; style="nostyle")' in plugins["plugins"]
         assert "GitHubActions()" in plugins["plugins"]
         assert "Codecov()" in plugins["plugins"]
         
@@ -371,7 +383,8 @@ class TestJuliaPackageGenerator:
                 generator.create_package(
                     package_name="TestPackage",
                     author="Author",
-                    output_dir=nonexistent_dir
+                    output_dir=nonexistent_dir,
+                    formatter_style="nostyle"
                 )
                 
                 assert nonexistent_dir.exists()
