@@ -32,17 +32,9 @@ def load_config() -> dict:
 
     if config_path.exists():
         try:
-            # Try Python 3.11+ tomllib first, then fallback to tomli
-            try:
-                import tomllib
-
-                with open(config_path, "rb") as f:
-                    config = tomllib.load(f)
-            except ImportError:
-                import tomli  # type: ignore
-
-                with open(config_path, "rb") as f:
-                    config = tomli.load(f)
+            import tomllib
+            with open(config_path, "rb") as f:
+                config = tomllib.load(f)
         except Exception as e:
             click.echo(
                 f"Warning: Error loading config file {config_path}: {e}", err=True
