@@ -97,12 +97,10 @@ class JuliaPackageGenerator:
         Returns:
             Path to the created package directory
         """
-        # Validate inputs
         output_dir = Path(output_dir).resolve()
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
 
-        # Determine plugins based on template type
         plugins = self._get_plugins(
             template,
             license_type,
@@ -118,12 +116,10 @@ class JuliaPackageGenerator:
             project_version,
         )
 
-        # Call Julia script to create package
         package_dir = self._call_julia_generator(
             package_name, author, user, output_dir, plugins, julia_version
         )
 
-        # Add mise configuration
         self._add_mise_config(package_dir, package_name)
 
         return package_dir
@@ -146,20 +142,16 @@ class JuliaPackageGenerator:
         """Get PkgTemplates.jl plugins configuration"""
         base_plugins = []
 
-        # Add ProjectFile plugin with version if specified
         version = project_version or "0.0.1"
         base_plugins.append(f'ProjectFile(; version=v"{version}")')
 
-        # Add License plugin (map user-friendly name to PkgTemplates.jl identifier)
         mapped_license = self._map_license(license_type)
         base_plugins.append(f'License(; name="{mapped_license}")')
 
-        # Add Git plugin
         git_options = ["manifest=true"]
         if ssh:
             git_options.append("ssh=true")
         if ignore_patterns:
-            # Parse comma-separated patterns and format as Julia array
             patterns = [
                 f'"{p.strip()}"' for p in ignore_patterns.split(",") if p.strip()
             ]
@@ -167,10 +159,8 @@ class JuliaPackageGenerator:
         git_plugin = f"Git(; {', '.join(git_options)})"
         base_plugins.append(git_plugin)
 
-        # Add Formatter plugin
         base_plugins.append(f'Formatter(; style="{formatter_style}")')
 
-        # Add Tests plugin with aqua and jet options
         test_options = []
         if tests_project:
             test_options.append("project=true")
@@ -204,7 +194,6 @@ class JuliaPackageGenerator:
         else:
             raise ValueError(f"Unknown template type: {template}")
 
-        # Filter out None values
         plugins = [p for p in plugins if p is not None]
 
         return {
@@ -230,10 +219,8 @@ class JuliaPackageGenerator:
         if not julia_script.exists():
             raise FileNotFoundError(f"Julia script not found: {julia_script}")
 
-        # Convert plugins to Julia array format
         plugins_str = "[" + ", ".join(plugins["plugins"]) + "]"
 
-        # Call Julia script
         cmd = [
             "julia",
             str(julia_script),
@@ -244,14 +231,12 @@ class JuliaPackageGenerator:
             plugins_str,
         ]
 
-        # Add Julia version if specified
         if julia_version:
             cmd.append(julia_version)
 
         try:
             _ = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
-            # Parse output to get package directory
             package_dir = output_dir / package_name
             if not package_dir.exists():
                 raise RuntimeError(f"Package directory not created: {package_dir}")
@@ -259,20 +244,18 @@ class JuliaPackageGenerator:
             return package_dir
 
         except subprocess.CalledProcessError as e:
-            # Check if the error is actually a failure by looking for error indicators
             if "Error creating package:" in e.stdout or "Error:" in e.stdout:
                 error_pattern = re.compile(r"(Error:|Error creating package:)\s*(.+)")
                 error_lines = error_pattern.findall(e.stdout)
                 if error_lines:
-                    # Use the last matched error message
-                    error_msg = error_lines[-1][1]  # Extract the actual error message
+                    error_msg = error_lines[-1][1]
                 else:
                     error_msg = f"Julia script failed: {e.stdout}"
                 if "PkgTemplates" in e.stderr:
                     error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
                 raise RuntimeError(error_msg) from e
             else:
-                # Package might have been created successfully despite stderr output
+                # PkgTemplates.jl may output warnings to stderr but still succeed
                 package_dir = output_dir / package_name
                 if package_dir.exists():
                     return package_dir
@@ -298,14 +281,12 @@ class JuliaPackageGenerator:
         """Check if required dependencies are available"""
         dependencies = {}
 
-        # Check Julia
         try:
             _ = subprocess.run(["julia", "--version"], capture_output=True, check=True)
             dependencies["julia"] = True
         except (subprocess.CalledProcessError, FileNotFoundError):
             dependencies["julia"] = False
 
-        # Check PkgTemplates.jl
         try:
             _ = subprocess.run(
                 ["julia", "-e", "using PkgTemplates"], capture_output=True, check=True
@@ -314,7 +295,6 @@ class JuliaPackageGenerator:
         except subprocess.CalledProcessError:
             dependencies["pkgtemplates"] = False
 
-        # Check mise
         try:
             _ = subprocess.run(["mise", "--version"], capture_output=True, check=True)
             dependencies["mise"] = True
