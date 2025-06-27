@@ -4,8 +4,7 @@ Tests for Generator module
 
 import pytest
 import subprocess
-from pathlib import Path
-from unittest.mock import Mock, patch, MagicMock
+from unittest.mock import Mock, patch
 
 from juliapkgtemplates.generator import JuliaPackageGenerator
 
@@ -31,13 +30,23 @@ class TestJuliaPackageGenerator:
             with_docs=True,
             with_ci=True,
             with_codecov=True,
-            formatter_style="nostyle"
+            formatter_style="nostyle",
+            ssh=False,
+            ignore_patterns=None,
+            tests_aqua=False,
+            tests_jet=False,
+            tests_project=True,
+            project_version=None,
+            is_in_git_repo=False,
+            force_in_git_repo=False
         )
         
         expected_plugins = [
+            'ProjectFile(; version=v"0.0.1")',
             'License(; name="MIT")',
             "Git(; manifest=true)",
-            'Formatter(; style="nostyle")'
+            'Formatter(; style="nostyle")',
+            'Tests(; project=true)'
         ]
         
         assert plugins["plugins"] == expected_plugins
@@ -54,13 +63,23 @@ class TestJuliaPackageGenerator:
             with_docs=True,
             with_ci=True,
             with_codecov=True,
-            formatter_style="sciml"
+            formatter_style="sciml",
+            ssh=False,
+            ignore_patterns=None,
+            tests_aqua=False,
+            tests_jet=False,
+            tests_project=True,
+            project_version=None,
+            is_in_git_repo=False,
+            force_in_git_repo=False
         )
         
         expected_plugins = [
+            'ProjectFile(; version=v"0.0.1")',
             'License(; name="Apache-2.0")',
             "Git(; manifest=true)",
             'Formatter(; style="sciml")',
+            'Tests(; project=true)',
             "GitHubActions()",
             "Codecov()"
         ]
@@ -78,13 +97,23 @@ class TestJuliaPackageGenerator:
             with_docs=True,
             with_ci=False,
             with_codecov=False,
-            formatter_style="blue"
+            formatter_style="blue",
+            ssh=False,
+            ignore_patterns=None,
+            tests_aqua=False,
+            tests_jet=False,
+            tests_project=True,
+            project_version=None,
+            is_in_git_repo=False,
+            force_in_git_repo=False
         )
         
         expected_plugins = [
+            'ProjectFile(; version=v"0.0.1")',
             'License(; name="MIT")',
             "Git(; manifest=true)",
-            'Formatter(; style="blue")'
+            'Formatter(; style="blue")',
+            'Tests(; project=true)'
         ]
         
         assert plugins["plugins"] == expected_plugins
@@ -99,13 +128,23 @@ class TestJuliaPackageGenerator:
             with_docs=True,
             with_ci=True,
             with_codecov=True,
-            formatter_style="yas"
+            formatter_style="yas",
+            ssh=False,
+            ignore_patterns=None,
+            tests_aqua=False,
+            tests_jet=False,
+            tests_project=True,
+            project_version=None,
+            is_in_git_repo=False,
+            force_in_git_repo=False
         )
         
         expected_plugins = [
+            'ProjectFile(; version=v"0.0.1")',
             'License(; name="BSD-3-Clause")',
             "Git(; manifest=true)",
             'Formatter(; style="yas")',
+            'Tests(; project=true)',
             "GitHubActions()",
             "Codecov()",
             "Documenter{GitHubActions}()",
@@ -125,7 +164,15 @@ class TestJuliaPackageGenerator:
             with_docs=False,
             with_ci=True,
             with_codecov=True,
-            formatter_style="nostyle"
+            formatter_style="nostyle",
+            ssh=False,
+            ignore_patterns=None,
+            tests_aqua=False,
+            tests_jet=False,
+            tests_project=True,
+            project_version=None,
+            is_in_git_repo=False,
+            force_in_git_repo=False
         )
         
         # Should not include Documenter
@@ -144,8 +191,55 @@ class TestJuliaPackageGenerator:
                 with_docs=True,
                 with_ci=True,
                 with_codecov=True,
-                formatter_style="nostyle"
+                formatter_style="nostyle",
+                ssh=False,
+                ignore_patterns=None,
+                tests_aqua=False,
+                tests_jet=False,
+                tests_project=True,
+                project_version=None,
+                is_in_git_repo=False,
+                force_in_git_repo=False
             )
+    
+    def test_get_plugins_in_git_repo(self):
+        """Test plugin configuration when inside a Git repository"""
+        generator = JuliaPackageGenerator()
+        
+        plugins = generator._get_plugins(
+            template="full",
+            license_type="MIT",
+            with_docs=True,
+            with_ci=True,
+            with_codecov=True,
+            formatter_style="nostyle",
+            ssh=False,
+            ignore_patterns=None,
+            tests_aqua=False,
+            tests_jet=False,
+            tests_project=True,
+            project_version=None,
+            is_in_git_repo=True,
+            force_in_git_repo=False
+        )
+        
+        # Should not include Git-dependent plugins
+        expected_plugins = [
+            'ProjectFile(; version=v"0.0.1")',
+            'License(; name="MIT")',
+            'Formatter(; style="nostyle")',
+            'Tests(; project=true)'
+        ]
+        
+        assert plugins["plugins"] == expected_plugins
+        # Should not contain Git, GitHubActions, Codecov, Documenter, TagBot, CompatHelper
+        plugin_strings = ' '.join(plugins["plugins"])
+        assert "Git(" not in plugin_strings
+        assert "GitHubActions" not in plugin_strings
+        assert "Codecov" not in plugin_strings
+        assert "Documenter" not in plugin_strings
+        assert "TagBot" not in plugin_strings
+        assert "CompatHelper" not in plugin_strings
     
     @patch('subprocess.run')
     def test_call_julia_generator_success(self, mock_run, temp_dir):

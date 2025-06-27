@@ -16,12 +16,19 @@ catch e
     rethrow(e)
 end
 
+# Try to import LibGit2 for GitError handling
+try
+    using LibGit2: GitError
+catch
+    # Define a fallback GitError check if LibGit2 is not available
+    GitError = Exception
+end
+
 
 function parse_plugins(plugins_str::String)
   """Parse plugins string from Python and return Julia array"""
   # Plugin mapping table
   plugin_patterns = Dict(
-    r"Git.*manifest=true" => () -> Git(; manifest=true),
     r"GitHubActions\(\)" => () -> GitHubActions(),
     r"Codecov\(\)" => () -> Codecov(),
     r"Documenter\{GitHubActions\}\(\)" => () -> Documenter{GitHubActions}(),
@@ -65,6 +72,69 @@ function parse_plugins(plugins_str::String)
       continue
     end
 
+    # Handle Git plugin with parameters (SSH, ignore patterns)
+    if occursin("Git", plugin_str)
+      # Parse Git plugin parameters dynamically
+      git_params = Dict{Symbol, Any}()
+      
+      # Check for manifest
+      if occursin("manifest=true", plugin_str)
+        git_params[:manifest] = true
+      end
+      
+      # Check for SSH
+      if occursin("ssh=true", plugin_str)
+        git_params[:ssh] = true
+      end
+      
+      # Check for ignore patterns
+      ignore_match = match(r"ignore=\[([^\]]+)\]", plugin_str)
+      if ignore_match !== nothing
+        ignore_str = ignore_match.captures[1]
+        # Parse array of strings
+        patterns = [strip(s, ['"', ' ']) for s in split(ignore_str, ',') if !isempty(strip(s))]
+        git_params[:ignore] = patterns
+      end
+      
+      push!(plugins, Git(; git_params...))
+      continue
+    end
+
+    # Handle Tests plugin with parameters (aqua, jet, project)
+    if occursin("Tests", plugin_str)
+      test_params = Dict{Symbol, Any}()
+      
+      # Check for project
+      if occursin("project=true", plugin_str)
+        test_params[:project] = true
+      end
+      
+      # Check for aqua
+      if occursin("aqua=true", plugin_str)
+        test_params[:aqua] = true
+      end
+      
+      # Check for jet
+      if occursin("jet=true", plugin_str)
+        test_params[:jet] = true
+      end
+      
+      push!(plugins, Tests(; test_params...))
+      continue
+    end
+
+    # Handle ProjectFile plugin with version
+    if occursin("ProjectFile", plugin_str)
+      version_match = match(r"ProjectFile\(;\s*version=v\"([^\"]+)\"\)", plugin_str)
+      if version_match !== nothing
+        version_str = version_match.captures[1]
+        push!(plugins, ProjectFile(; version=VersionNumber(version_str)))
+      else
+        push!(plugins, ProjectFile())
+      end
+      continue
+    end
+
     # Check against plugin patterns table
     matched = false
     for (pattern, creator) in plugin_patterns
@@ -83,7 +153,7 @@ function parse_plugins(plugins_str::String)
   return plugins
 end
 
-function generate_package(package_name::String, author::String, output_dir::String, plugins_str::String)
+function generate_package(package_name::String, author::String, output_dir::String, plugins_str::String, julia_version::Union{String, Nothing}=nothing)
   """Generate Julia package using PkgTemplates.jl"""
 
   # Parse plugins
@@ -93,13 +163,19 @@ function generate_package(package_name::String, author::String, output_dir::Stri
   println("Author: $author")
   println("Output directory: $output_dir")
   println("Plugins: $(length(plugins)) plugins configured")
+  if julia_version !== nothing
+    println("Julia version: $julia_version")
+  end
 
-  # Create template
-  template = Template(;
-    user=author,
-    dir=output_dir,
-    plugins=plugins
-  )
+  # Create template with optional Julia version
+  template_args = Dict(:user => author, :dir => output_dir, :plugins => plugins)
+  if julia_version !== nothing
+    # Parse Julia version string like "v1.10.9" to VersionNumber
+    version_str = replace(julia_version, "v" => "")
+    template_args[:julia] = VersionNumber(version_str)
+  end
+  
+  template = Template(; template_args...)
 
   # Generate package
   try
@@ -108,14 +184,20 @@ function generate_package(package_name::String, author::String, output_dir::Stri
     return package_dir
   catch e
     println("Error creating package: $e")
+    # Print more detailed error information
+    if isa(e, GitError)
+      println("Git error details: $(e.msg)")
+      println("Git error code: $(e.code)")
+      println("Git error class: $(e.class)")
+    end
     rethrow(e)
   end
 end
 
 function main()
   if length(ARGS) < 4
-    println("Usage: julia pkg_generator.jl <package_name> <author> <output_dir> <plugins>")
-    println("Example: julia pkg_generator.jl MyPackage \"John Doe\" \"/path/to/output\" \"[License(; name=\\\"MIT\\\"), Git(; manifest=true)]\"")
+    println("Usage: julia pkg_generator.jl <package_name> <author> <output_dir> <plugins> [julia_version]")
+    println("Example: julia pkg_generator.jl MyPackage \"John Doe\" \"/path/to/output\" \"[License(; name=\\\"MIT\\\"), Git(; manifest=true)]\" \"v1.10.9\"")
     exit(1)
   end
 
@@ -123,9 +205,10 @@ function main()
   author = ARGS[2]
   output_dir = ARGS[3]
   plugins_str = ARGS[4]
+  julia_version = length(ARGS) >= 5 ? ARGS[5] : nothing
 
   try
-    generate_package(package_name, author, output_dir, plugins_str)
+    generate_package(package_name, author, output_dir, plugins_str, julia_version)
   catch e
     println("Error: $e")
     exit(1)
