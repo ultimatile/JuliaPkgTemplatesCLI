@@ -209,7 +209,7 @@ def create(
 
     # Get author from config if not provided (let PkgTemplates.jl handle git config fallback)
     if not author:
-        author = defaults.get("author") or ""
+        author = defaults.get("author") or None
 
     # Apply config defaults for other options if not explicitly set
     if license is None:
@@ -243,7 +243,7 @@ def create(
         project_version = defaults.get("project_version") or "0.1.0"
 
     click.echo(f"Creating Julia package: {package_name}")
-    click.echo(f"Author: {author}")
+    click.echo(f"Author: {author if author is not None else 'None'}")
     click.echo(f"Template: {template}")
     click.echo(f"Output directory: {output_dir}")
 
