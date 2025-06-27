@@ -3,6 +3,7 @@ Julia package generator using PkgTemplates.jl and Jinja2
 """
 
 import logging
+import re
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -260,24 +261,13 @@ class JuliaPackageGenerator:
         except subprocess.CalledProcessError as e:
             # Check if the error is actually a failure by looking for error indicators
             if "Error creating package:" in e.stdout or "Error:" in e.stdout:
-                # Extract the actual error message from Julia output
-                lines = e.stdout.strip().split("\n")
-                error_lines = [
-                    line
-                    for line in lines
-                    if line.startswith("Error:") or "Error creating package:" in line
-                ]
-
+                error_pattern = re.compile(r"(Error:|Error creating package:)\s*(.+)")
+                error_lines = error_pattern.findall(e.stdout)
                 if error_lines:
-                    # Use the actual Julia error message without prefix
-                    error_msg = error_lines[-1]  # Use the last error message
-                    if error_msg.startswith("Error: "):
-                        error_msg = error_msg[7:]  # Remove "Error: " prefix
-                    elif "Error creating package: " in error_msg:
-                        error_msg = error_msg.split("Error creating package: ", 1)[1]
+                    # Use the last matched error message
+                    error_msg = error_lines[-1][1]  # Extract the actual error message
                 else:
                     error_msg = f"Julia script failed: {e.stdout}"
-
                 if "PkgTemplates" in e.stderr:
                     error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
                 raise RuntimeError(error_msg) from e
