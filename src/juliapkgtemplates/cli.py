@@ -39,7 +39,7 @@ def load_config() -> dict:
                 with open(config_path, "rb") as f:
                     config = tomllib.load(f)
             except ImportError:
-                import tomli
+                import tomli  # type: ignore
 
                 with open(config_path, "rb") as f:
                     config = tomli.load(f)
@@ -217,38 +217,38 @@ def create(
 
     # Get author from config if not provided (let PkgTemplates.jl handle git config fallback)
     if not author:
-        author = defaults.get("author")
+        author = defaults.get("author") or ""
 
     # Apply config defaults for other options if not explicitly set
     if license is None:
-        license = defaults.get("license", "MIT")
+        license = defaults.get("license") or "MIT"
 
     if template is None:
-        template = defaults.get("template", "standard")
+        template = defaults.get("template") or "standard"
 
     if formatter_style is None:
-        formatter_style = defaults.get("formatter_style", "nostyle")
+        formatter_style = defaults.get("formatter_style") or "nostyle"
 
     if julia_version is None:
-        julia_version = defaults.get("julia_version")
+        julia_version = defaults.get("julia_version") or "1.10"
 
     if ssh is None:
-        ssh = defaults.get("ssh", False)
+        ssh = bool(defaults.get("ssh", False))
 
     if ignore_patterns is None:
-        ignore_patterns = defaults.get("ignore_patterns")
+        ignore_patterns = defaults.get("ignore_patterns") or ""
 
     if tests_aqua is None:
-        tests_aqua = defaults.get("tests_aqua", False)
+        tests_aqua = bool(defaults.get("tests_aqua", False))
 
     if tests_jet is None:
-        tests_jet = defaults.get("tests_jet", False)
+        tests_jet = bool(defaults.get("tests_jet", False))
 
     if tests_project is None:
-        tests_project = defaults.get("tests_project", True)
+        tests_project = bool(defaults.get("tests_project", True))
 
     if project_version is None:
-        project_version = defaults.get("project_version")
+        project_version = defaults.get("project_version") or "0.1.0"
 
     click.echo(f"Creating Julia package: {package_name}")
     click.echo(f"Author: {author}")
