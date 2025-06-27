@@ -6,22 +6,16 @@ Called from Python jugen CLI tool
 """
 
 using Pkg
-using PkgTemplates
 
 println("Loading PkgTemplates.jl...")
-
-function create_license_plugin(license_name::String)
-  """Create License plugin with specified license name"""
-  license_map = Dict(
-    "MIT" => () -> License(; name="MIT"),
-    "Apache-2.0" => () -> License(; name="Apache-2.0"),
-    "BSD-3-Clause" => () -> License(; name="BSD-3-Clause"),
-    "GPL-3.0" => () -> License(; name="GPL-3.0")
-  )
-
-  creator = get(license_map, license_name, () -> License(; name="MIT"))
-  return creator()
+try
+    using PkgTemplates
+    println("PkgTemplates.jl loaded successfully")
+catch e
+    println("Error loading PkgTemplates.jl: ", e)
+    rethrow(e)
 end
+
 
 function parse_plugins(plugins_str::String)
   """Parse plugins string from Python and return Julia array"""
@@ -49,12 +43,12 @@ function parse_plugins(plugins_str::String)
 
     # Handle License plugin specially (requires parameter extraction)
     if occursin("License", plugin_str)
-      license_match = match(r"License\(;\s*name=\"(\w+)\"\)", plugin_str)
+      license_match = match(r"License\(;\s*name=\"([^\"]+)\"\)", plugin_str)
       if license_match !== nothing
         license_name = license_match.captures[1]
-        push!(plugins, create_license_plugin(license_name))
+        push!(plugins, License(; name=license_name))
       else
-        push!(plugins, create_license_plugin("MIT"))  # Default fallback
+        push!(plugins, License(; name="MIT"))  # Default fallback
       end
       continue
     end
