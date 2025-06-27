@@ -252,7 +252,7 @@ class TestJuliaPackageGenerator:
             julia_script = temp_dir / "pkg_generator.jl"
             julia_script.touch()
             
-            with pytest.raises(RuntimeError, match="Julia script failed"):
+            with pytest.raises(RuntimeError, match="PkgTemplates error"):
                 generator._call_julia_generator(
                     "TestPackage", "Author", temp_dir, {"plugins": []}
                 )
@@ -388,3 +388,37 @@ class TestJuliaPackageGenerator:
                 )
                 
                 assert nonexistent_dir.exists()
+
+    @patch('subprocess.run')
+    def test_call_julia_generator_invalid_package_names(self, mock_run, temp_dir):
+        """Test Julia script handles invalid package names"""
+        generator = JuliaPackageGenerator()
+        
+        invalid_names = [
+            "123InvalidStart",  # Starts with number
+            "invalid-name",     # Contains hyphen (not allowed in Julia identifiers)  
+            "invalid name",     # Contains space
+            "invalid.name",     # Contains dot
+            "invalid@name",     # Contains special character
+            "if",               # Reserved keyword
+            "function",         # Reserved keyword
+            "",                 # Empty string
+            "a",                # Too short (less than 5 chars for General registry)
+            "lowercase",        # Doesn't start with uppercase
+        ]
+        
+        with patch.object(generator, 'scripts_dir', temp_dir):
+            julia_script = temp_dir / "pkg_generator.jl"
+            julia_script.touch()
+            
+            for invalid_name in invalid_names:
+                # Mock PkgTemplates.jl error for invalid package name
+                error = subprocess.CalledProcessError(1, ["julia"])
+                error.stdout = f"Error creating package: {invalid_name} is not a valid package name"
+                error.stderr = ""
+                mock_run.side_effect = error
+                
+                with pytest.raises(RuntimeError, match="is not a valid package name"):
+                    generator._call_julia_generator(
+                        invalid_name, "Author", temp_dir, {"plugins": []}
+                    )
