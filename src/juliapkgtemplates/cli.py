@@ -75,15 +75,38 @@ def get_help_with_default(
     return f"{description} (default: {actual_default})"
 
 
-def get_author_help() -> str:
-    """Generate help text for author option with config or PkgTemplates.jl fallback"""
+def get_help_with_fallback(
+    base_description: str, config_key: str, fallback_text: Optional[str] = None
+) -> str:
+    """Generate help text with config default or fallback text"""
     config = load_config()
     defaults = config.get("default", {})
-    author = defaults.get("author")
-    if author and author.strip():
-        return f"Author name for the package (default: {author})"
+    value = defaults.get(config_key)
+
+    if value and value.strip():
+        return f"{base_description} (default: {value})"
+    elif fallback_text:
+        return f"{base_description} ({fallback_text})"
     else:
-        return "Author name for the package (uses PkgTemplates.jl default if not set)"
+        return base_description
+
+
+def get_author_help() -> str:
+    """Generate help text for author option with config fallback"""
+    return get_help_with_fallback(
+        "Author name for the package",
+        "author",
+        "uses PkgTemplates.jl default if not set",
+    )
+
+
+def get_user_help() -> str:
+    """Generate help text for user option with config or PkgTemplates.jl fallback"""
+    return get_help_with_fallback(
+        "Git hosting username for repository URLs and CI",
+        "user",
+        "uses git config github.user if not set",
+    )
 
 
 @click.group()
@@ -96,11 +119,7 @@ def main():
 @main.command()
 @click.argument("package_name")
 @click.option("--author", "-a", help=get_author_help())
-@click.option(
-    "--user",
-    "-u",
-    help="Git hosting username for repository URLs and CI (uses git config github.user if not set)",
-)
+@click.option("--user", "-u", help=get_user_help())
 @click.option(
     "--output-dir",
     "-o",
