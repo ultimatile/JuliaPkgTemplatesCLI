@@ -164,8 +164,8 @@ class TestCreateCommand:
                 assert call_args[1]['license_type'] == "Apache-2.0"
                 assert call_args[1]['template'] == "full"
     
-    def test_create_prompt_for_author(self, cli_runner, temp_dir):
-        """Test create command prompts for author when not provided"""
+    def test_create_no_author_delegates_to_pkgtemplates(self, cli_runner, temp_dir):
+        """Test create command delegates to PkgTemplates.jl when no author provided"""
         with patch('juliapkgtemplates.cli.load_config', return_value={}):
             with patch('juliapkgtemplates.cli.JuliaPackageGenerator') as mock_generator:
                 mock_instance = Mock()
@@ -175,10 +175,14 @@ class TestCreateCommand:
                 result = cli_runner.invoke(create, [
                     'TestPackage',
                     '--output-dir', str(temp_dir)
-                ], input='Prompted Author\n')
+                ])
                 
                 assert result.exit_code == 0
-                assert "Author name:" in result.output
+                assert "Author: None" in result.output
+                # Verify that create_package was called with author=None, letting PkgTemplates.jl handle it
+                mock_instance.create_package.assert_called_once()
+                call_args = mock_instance.create_package.call_args
+                assert call_args.kwargs['author'] is None
     
     def test_create_generator_error(self, cli_runner, temp_dir):
         """Test create command handles generator errors"""

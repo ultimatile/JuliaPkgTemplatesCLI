@@ -72,6 +72,25 @@ def save_config(config: dict) -> None:
         sys.exit(1)
 
 
+def get_help_with_default(description: str, config_key: str, fallback_default: str) -> str:
+    """Generate help text with actual default value from config"""
+    config = load_config()
+    defaults = config.get("default", {})
+    actual_default = defaults.get(config_key, fallback_default)
+    return f"{description} (default: {actual_default})"
+
+
+def get_author_help() -> str:
+    """Generate help text for author option with config or PkgTemplates.jl fallback"""
+    config = load_config()
+    defaults = config.get("default", {})
+    author = defaults.get("author")
+    if author and author.strip():
+        return f"Author name for the package (default: {author})"
+    else:
+        return "Author name for the package (uses PkgTemplates.jl default if not set)"
+
+
 
 @click.group()
 @click.version_option(package_name="JuliaPkgTemplatesCLI")
@@ -82,7 +101,7 @@ def main():
 
 @main.command()
 @click.argument("package_name")
-@click.option("--author", "-a", help="Author name for the package")
+@click.option("--author", "-a", help=get_author_help())
 @click.option(
     "--output-dir",
     "-o",
@@ -94,12 +113,12 @@ def main():
     "--template",
     "-t",
     type=click.Choice(["minimal", "standard", "full"]),
-    help="Template type (default: standard or config value)",
+    help=get_help_with_default("Template type", "template", "standard"),
 )
 @click.option(
     "--license",
     type=click.Choice(["MIT", "Apache2", "BSD3", "GPL3", "MPL"]),
-    help="License type (default: MIT or config value)",
+    help=get_help_with_default("License type", "license", "MIT"),
 )
 @click.option(
     "--with-docs/--no-docs",
@@ -117,7 +136,7 @@ def main():
 @click.option(
     "--formatter-style",
     type=click.Choice(["nostyle", "sciml", "blue", "yas"]),
-    help="JuliaFormatter style (default: nostyle or config value)",
+    help=get_help_with_default("JuliaFormatter style", "formatter_style", "nostyle"),
 )
 @click.option(
     "--julia-version",
@@ -126,7 +145,7 @@ def main():
 @click.option(
     "--ssh/--no-ssh",
     default=None,
-    help="Use SSH for Git operations (default: False or config value)",
+    help=get_help_with_default("Use SSH for Git operations", "ssh", "False"),
 )
 @click.option(
     "--ignore-patterns",
@@ -135,17 +154,17 @@ def main():
 @click.option(
     "--tests-aqua/--no-tests-aqua",
     default=None,
-    help="Enable Aqua.jl in Tests plugin (default: False or config value)",
+    help=get_help_with_default("Enable Aqua.jl in Tests plugin", "tests_aqua", "False"),
 )
 @click.option(
     "--tests-jet/--no-tests-jet",
     default=None,
-    help="Enable JET.jl in Tests plugin (default: False or config value)",
+    help=get_help_with_default("Enable JET.jl in Tests plugin", "tests_jet", "False"),
 )
 @click.option(
     "--tests-project/--no-tests-project",
     default=None,
-    help="Enable separate project for tests (default: True or config value)",
+    help=get_help_with_default("Enable separate project for tests", "tests_project", "True"),
 )
 @click.option(
     "--project-version",
@@ -196,11 +215,9 @@ def create(
     config = load_config()
     defaults = config.get("default", {})
 
-    # Get author from config or prompt
+    # Get author from config if not provided (let PkgTemplates.jl handle git config fallback)
     if not author:
         author = defaults.get("author")
-        if not author:
-            author = click.prompt("Author name")
 
     # Apply config defaults for other options if not explicitly set
     if license is None:
