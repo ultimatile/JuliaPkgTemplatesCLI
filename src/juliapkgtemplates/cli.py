@@ -33,6 +33,7 @@ def load_config() -> dict:
     if config_path.exists():
         try:
             import tomllib
+
             with open(config_path, "rb") as f:
                 config = tomllib.load(f)
         except Exception as e:
@@ -64,7 +65,9 @@ def save_config(config: dict) -> None:
         sys.exit(1)
 
 
-def get_help_with_default(description: str, config_key: str, fallback_default: str) -> str:
+def get_help_with_default(
+    description: str, config_key: str, fallback_default: str
+) -> str:
     """Generate help text with actual default value from config"""
     config = load_config()
     defaults = config.get("default", {})
@@ -83,7 +86,6 @@ def get_author_help() -> str:
         return "Author name for the package (uses PkgTemplates.jl default if not set)"
 
 
-
 @click.group()
 @click.version_option(package_name="JuliaPkgTemplatesCLI")
 def main():
@@ -94,6 +96,7 @@ def main():
 @main.command()
 @click.argument("package_name")
 @click.option("--author", "-a", help=get_author_help())
+@click.option("--user", "-u", help="Git hosting username for repository URLs and CI")
 @click.option(
     "--output-dir",
     "-o",
@@ -109,7 +112,22 @@ def main():
 )
 @click.option(
     "--license",
-    type=click.Choice(["MIT", "Apache", "BSD2", "BSD3", "GPL2", "GPL3", "MPL", "ISC", "LGPL2", "LGPL3", "AGPL3", "EUPL"]),
+    type=click.Choice(
+        [
+            "MIT",
+            "Apache",
+            "BSD2",
+            "BSD3",
+            "GPL2",
+            "GPL3",
+            "MPL",
+            "ISC",
+            "LGPL2",
+            "LGPL3",
+            "AGPL3",
+            "EUPL",
+        ]
+    ),
     help=get_help_with_default("License type", "license", "MIT"),
 )
 @click.option(
@@ -132,7 +150,7 @@ def main():
 )
 @click.option(
     "--julia-version",
-    help="Julia version constraint (e.g., v\"1.10.9\") for Template constructor",
+    help='Julia version constraint (e.g., v"1.10.9") for Template constructor',
 )
 @click.option(
     "--ssh/--no-ssh",
@@ -156,17 +174,20 @@ def main():
 @click.option(
     "--tests-project/--no-tests-project",
     default=None,
-    help=get_help_with_default("Enable separate project for tests", "tests_project", "True"),
+    help=get_help_with_default(
+        "Enable separate project for tests", "tests_project", "True"
+    ),
 )
 @click.option(
     "--project-version",
-    help="Initial version for ProjectFile plugin (e.g., v\"0.0.1\")",
+    help='Initial version for ProjectFile plugin (e.g., v"0.0.1")',
 )
 @click.pass_context
 def create(
     ctx: click.Context,
     package_name: str,
     author: Optional[str],
+    user: Optional[str],
     output_dir: str,
     template: Optional[str],
     license: Optional[str],
@@ -204,6 +225,10 @@ def create(
     if not author:
         author = defaults.get("author") or None
 
+    # Get user from config if not provided (let PkgTemplates.jl handle git config fallback)
+    if not user:
+        user = defaults.get("user") or None
+
     # Apply config defaults for other options if not explicitly set
     if license is None:
         license = defaults.get("license") or "MIT"
@@ -237,6 +262,7 @@ def create(
 
     click.echo(f"Creating Julia package: {package_name}")
     click.echo(f"Author: {author if author is not None else 'None'}")
+    click.echo(f"User: {user if user is not None else 'None (will use git config)'}")
     click.echo(f"Template: {template}")
     click.echo(f"Output directory: {output_dir}")
 
@@ -245,6 +271,7 @@ def create(
         package_dir = generator.create_package(
             package_name=package_name,
             author=author,
+            user=user,
             output_dir=Path(output_dir),
             template=template,
             license_type=license,
@@ -275,9 +302,25 @@ def create(
 
 @main.command()
 @click.option("--author", "-a", help="Default author name")
+@click.option("--user", "-u", help="Default GitHub username")
 @click.option(
     "--license",
-    type=click.Choice(["MIT", "Apache", "BSD2", "BSD3", "GPL2", "GPL3", "MPL", "ISC", "LGPL2", "LGPL3", "AGPL3", "EUPL"]),
+    type=click.Choice(
+        [
+            "MIT",
+            "Apache",
+            "BSD2",
+            "BSD3",
+            "GPL2",
+            "GPL3",
+            "MPL",
+            "ISC",
+            "LGPL2",
+            "LGPL3",
+            "AGPL3",
+            "EUPL",
+        ]
+    ),
     help="Default license type",
 )
 @click.option(
@@ -324,6 +367,7 @@ def create(
 )
 def config(
     author: Optional[str],
+    user: Optional[str],
     license: Optional[str],
     template: Optional[str],
     formatter_style: Optional[str],
@@ -345,6 +389,10 @@ def config(
     if author:
         config["default"]["author"] = author
         click.echo(f"Set default author: {author}")
+
+    if user:
+        config["default"]["user"] = user
+        click.echo(f"Set default user: {user}")
 
     if license:
         config["default"]["license"] = license

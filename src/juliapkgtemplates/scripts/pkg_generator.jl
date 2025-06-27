@@ -153,7 +153,7 @@ function parse_plugins(plugins_str::String)
   return plugins
 end
 
-function generate_package(package_name::String, author::String, output_dir::String, plugins_str::String, julia_version::Union{String, Nothing}=nothing)
+function generate_package(package_name::String, author::String, user::String, output_dir::String, plugins_str::String, julia_version::Union{String, Nothing}=nothing)
   """Generate Julia package using PkgTemplates.jl"""
 
   # Parse plugins
@@ -161,6 +161,7 @@ function generate_package(package_name::String, author::String, output_dir::Stri
 
   println("Creating package: $package_name")
   println("Author: $author")
+  println("User: $user")
   println("Output directory: $output_dir")
   println("Plugins: $(length(plugins)) plugins configured")
   if julia_version !== nothing
@@ -168,7 +169,18 @@ function generate_package(package_name::String, author::String, output_dir::Stri
   end
 
   # Create template with optional Julia version
-  template_args = Dict(:user => author, :dir => output_dir, :plugins => plugins)
+  template_args = Dict(:dir => output_dir, :plugins => plugins)
+  
+  # Add author parameter if provided
+  if !isempty(author)
+    template_args[:authors] = [author]
+  end
+  
+  # Add user parameter if provided (otherwise PkgTemplates.jl uses git config)
+  if !isempty(user)
+    template_args[:user] = user
+  end
+  
   if julia_version !== nothing
     # Parse Julia version string like "v1.10.9" to VersionNumber
     version_str = replace(julia_version, "v" => "")
@@ -195,20 +207,21 @@ function generate_package(package_name::String, author::String, output_dir::Stri
 end
 
 function main()
-  if length(ARGS) < 4
-    println("Usage: julia pkg_generator.jl <package_name> <author> <output_dir> <plugins> [julia_version]")
-    println("Example: julia pkg_generator.jl MyPackage \"John Doe\" \"/path/to/output\" \"[License(; name=\\\"MIT\\\"), Git(; manifest=true)]\" \"v1.10.9\"")
+  if length(ARGS) < 5
+    println("Usage: julia pkg_generator.jl <package_name> <author> <user> <output_dir> <plugins> [julia_version]")
+    println("Example: julia pkg_generator.jl MyPackage \"John Doe\" \"johndoe\" \"/path/to/output\" \"[License(; name=\\\"MIT\\\"), Git(; manifest=true)]\" \"v1.10.9\"")
     exit(1)
   end
 
   package_name = ARGS[1]
   author = ARGS[2]
-  output_dir = ARGS[3]
-  plugins_str = ARGS[4]
-  julia_version = length(ARGS) >= 5 ? ARGS[5] : nothing
+  user = ARGS[3]
+  output_dir = ARGS[4]
+  plugins_str = ARGS[5]
+  julia_version = length(ARGS) >= 6 ? ARGS[6] : nothing
 
   try
-    generate_package(package_name, author, output_dir, plugins_str, julia_version)
+    generate_package(package_name, author, user, output_dir, plugins_str, julia_version)
   catch e
     println("Error: $e")
     exit(1)
