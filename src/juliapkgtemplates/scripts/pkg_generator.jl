@@ -92,11 +92,6 @@ end
 function generate_package(package_name::String, author::String, output_dir::String, plugins_str::String)
   """Generate Julia package using PkgTemplates.jl"""
 
-  # Validate package name
-  if !occursin(r"^[A-Za-z][A-Za-z0-9_-]*$", package_name)
-    error("Invalid package name: $package_name. Package names must start with a letter and contain only letters, numbers, underscores, and hyphens.")
-  end
-
   # Parse plugins
   plugins = parse_plugins(plugins_str)
 
