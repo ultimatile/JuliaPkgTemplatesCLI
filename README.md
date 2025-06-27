@@ -42,6 +42,16 @@ uv tool install .
 - PkgTemplates.jl installed in Julia
 - mise (optional, for mise task integration)
 
+### Runtime Dependencies
+
+- Click (command-line interface)
+- Jinja2 (template rendering)
+
+### Development Dependencies
+
+- pytest (testing)
+- pyright (type checking)
+
 ## Usage
 
 The primary command is `jtc create <package_name>`, which generates a new Julia package using PkgTemplates.jl.
@@ -127,7 +137,7 @@ For example, if you have `author = "Config Author"` in your config file but run 
 
 ### Configuration Location
 
-Configuration files are stored in `~/.config/jtc/config.toml` (Linux/macOS).
+Configuration files are stored in `~/.config/jtc/config.toml` following XDG Base Directory standards.
 
 If `XDG_CONFIG_HOME` environment variable is set, that location will be used instead.
 
@@ -147,7 +157,26 @@ For development setup:
 git clone https://github.com/ultimatile/JuliaPkgTemplatesCLI.git
 cd JuliaPkgTemplatesCLI
 uv sync
-uv run jtc --help  # Run the command
-uv run pytest     # Run tests
-uv run pyright    # Type checking
+```
+
+### Development Commands
+
+```bash
+# Run the CLI tool
+uv run jtc --help
+
+# Run tests (all)
+uv run pytest
+
+# Run tests with verbose output
+uv run pytest -v
+
+# Run specific test
+uv run pytest tests/test_cli.py::TestCreateCommand::test_create_with_valid_package_name -v
+
+# Type checking with pyright
+uv run pyright
+
+# Install from source for testing
+uv tool install .
 ```
