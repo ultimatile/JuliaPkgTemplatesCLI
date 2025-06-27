@@ -1,5 +1,5 @@
 """
-Pytest configuration and fixtures for jugen tests
+Pytest configuration and fixtures for JuliaPkgTemplatesCLI tests
 """
 
 import pytest

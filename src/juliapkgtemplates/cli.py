@@ -1,5 +1,5 @@
 """
-CLI interface for jugen - Julia package generator
+CLI interface for JuliaPkgTemplatesCLI - Julia package generator
 """
 
 import os
@@ -21,11 +21,11 @@ def get_config_path() -> Path:
         config_dir = Path.home() / ".config"
 
     config_dir.mkdir(parents=True, exist_ok=True)
-    return config_dir / "jugen.toml"
+    return config_dir / "jtc.toml"
 
 
 def load_config() -> dict:
-    """Load configuration from jugen.toml"""
+    """Load configuration from jtc.toml"""
     config_path = get_config_path()
     config = {}
 
@@ -51,7 +51,7 @@ def load_config() -> dict:
 
 
 def save_config(config: dict) -> None:
-    """Save configuration to jugen.toml"""
+    """Save configuration to jtc.toml"""
     config_path = get_config_path()
     try:
         import tomli_w
@@ -72,9 +72,9 @@ def save_config(config: dict) -> None:
 
 
 @click.group()
-@click.version_option()
+@click.version_option(package_name="JuliaPkgTemplatesCLI")
 def main():
-    """jugen - Julia package generator with PkgTemplates.jl and mise tasks integration"""
+    """jtc - Julia package generator with PkgTemplates.jl and mise tasks integration"""
     pass
 
 

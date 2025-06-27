@@ -9,7 +9,7 @@ from pathlib import Path
 from unittest.mock import patch, mock_open, Mock
 from click.testing import CliRunner
 
-from jugen.cli import (
+from juliapkgtemplates.cli import (
     main, 
     get_config_path, 
     load_config, 
@@ -26,21 +26,21 @@ class TestConfigFunctions:
         """Test config path with XDG_CONFIG_HOME set"""
         with patch.dict(os.environ, {'XDG_CONFIG_HOME': str(temp_config_dir)}):
             config_path = get_config_path()
-            assert config_path == temp_config_dir / "jugen.toml"
+            assert config_path == temp_config_dir / "jtc.toml"
     
     def test_get_config_path_without_xdg_config_home(self):
         """Test config path without XDG_CONFIG_HOME"""
         with patch.dict(os.environ, {}, clear=True):
             config_path = get_config_path()
-            assert config_path == Path.home() / ".config" / "jugen.toml"
+            assert config_path == Path.home() / ".config" / "jtc.toml"
     
     def test_load_config_existing_file(self, temp_config_dir):
         """Test loading existing config file"""
         config_content = b'[default]\nauthor = "Test Author"\nlicense = "MIT"\n'
-        config_file = temp_config_dir / "jugen.toml"
+        config_file = temp_config_dir / "jtc.toml"
         config_file.write_bytes(config_content)
         
-        with patch('jugen.cli.get_config_path', return_value=config_file):
+        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
             config = load_config()
             assert config["default"]["author"] == "Test Author"
             assert config["default"]["license"] == "MIT"
@@ -49,7 +49,7 @@ class TestConfigFunctions:
         """Test loading config when file doesn't exist"""
         config_file = temp_config_dir / "nonexistent.toml"
         
-        with patch('jugen.cli.get_config_path', return_value=config_file):
+        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
             config = load_config()
             assert config == {}
     
@@ -58,7 +58,7 @@ class TestConfigFunctions:
         config_file = temp_config_dir / "invalid.toml"
         config_file.write_text("invalid toml content [")
         
-        with patch('jugen.cli.get_config_path', return_value=config_file):
+        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
             config = load_config()
             assert config == {}
             captured = capsys.readouterr()
@@ -66,10 +66,10 @@ class TestConfigFunctions:
     
     def test_save_config_with_tomli_w(self, temp_config_dir):
         """Test saving config with tomli_w"""
-        config_file = temp_config_dir / "jugen.toml"
+        config_file = temp_config_dir / "jtc.toml"
         test_config = {"default": {"author": "Test Author", "license": "MIT"}}
         
-        with patch('jugen.cli.get_config_path', return_value=config_file):
+        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
             save_config(test_config)
             
         # Verify file was created and contains expected content
@@ -80,10 +80,10 @@ class TestConfigFunctions:
     
     def test_save_config_fallback(self, temp_config_dir):
         """Test saving config with fallback method"""
-        config_file = temp_config_dir / "jugen.toml"
+        config_file = temp_config_dir / "jtc.toml"
         test_config = {"default": {"author": "Test Author", "license": "MIT"}}
         
-        with patch('jugen.cli.get_config_path', return_value=config_file):
+        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
             with patch('tomli_w.dump', side_effect=ImportError):
                 save_config(test_config)
         
@@ -99,7 +99,7 @@ class TestCreateCommand:
     
     def test_create_with_valid_package_name(self, cli_runner, temp_dir):
         """Test create command with valid package name"""
-        with patch('jugen.cli.JuliaPackageGenerator') as mock_generator:
+        with patch('juliapkgtemplates.cli.JuliaPackageGenerator') as mock_generator:
             mock_instance = Mock()
             mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
             mock_generator.return_value = mock_instance
@@ -137,7 +137,7 @@ class TestCreateCommand:
     
     def test_create_with_config_defaults(self, cli_runner, temp_dir):
         """Test create command using config defaults"""
-        with patch('jugen.cli.load_config') as mock_load_config:
+        with patch('juliapkgtemplates.cli.load_config') as mock_load_config:
             mock_load_config.return_value = {
                 "default": {
                     "author": "Config Author",
@@ -146,7 +146,7 @@ class TestCreateCommand:
                 }
             }
             
-            with patch('jugen.cli.JuliaPackageGenerator') as mock_generator:
+            with patch('juliapkgtemplates.cli.JuliaPackageGenerator') as mock_generator:
                 mock_instance = Mock()
                 mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
                 mock_generator.return_value = mock_instance
@@ -168,8 +168,8 @@ class TestCreateCommand:
     
     def test_create_prompt_for_author(self, cli_runner, temp_dir):
         """Test create command prompts for author when not provided"""
-        with patch('jugen.cli.load_config', return_value={}):
-            with patch('jugen.cli.JuliaPackageGenerator') as mock_generator:
+        with patch('juliapkgtemplates.cli.load_config', return_value={}):
+            with patch('juliapkgtemplates.cli.JuliaPackageGenerator') as mock_generator:
                 mock_instance = Mock()
                 mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
                 mock_generator.return_value = mock_instance
@@ -184,7 +184,7 @@ class TestCreateCommand:
     
     def test_create_generator_error(self, cli_runner, temp_dir):
         """Test create command handles generator errors"""
-        with patch('jugen.cli.JuliaPackageGenerator') as mock_generator:
+        with patch('juliapkgtemplates.cli.JuliaPackageGenerator') as mock_generator:
             mock_instance = Mock()
             mock_instance.create_package.side_effect = RuntimeError("Julia not found")
             mock_generator.return_value = mock_instance
@@ -204,10 +204,10 @@ class TestConfigCommand:
     
     def test_config_set_author(self, cli_runner, temp_config_dir):
         """Test config command sets author"""
-        config_file = temp_config_dir / "jugen.toml"
+        config_file = temp_config_dir / "jtc.toml"
         
-        with patch('jugen.cli.get_config_path', return_value=config_file):
-            with patch('jugen.cli.load_config', return_value={}):
+        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
+            with patch('juliapkgtemplates.cli.load_config', return_value={}):
                 result = cli_runner.invoke(config_cmd, [
                     '--author', 'New Author'
                 ])
@@ -218,10 +218,10 @@ class TestConfigCommand:
     
     def test_config_set_multiple_options(self, cli_runner, temp_config_dir):
         """Test config command sets multiple options"""
-        config_file = temp_config_dir / "jugen.toml"
+        config_file = temp_config_dir / "jtc.toml"
         
-        with patch('jugen.cli.get_config_path', return_value=config_file):
-            with patch('jugen.cli.load_config', return_value={}):
+        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
+            with patch('juliapkgtemplates.cli.load_config', return_value={}):
                 result = cli_runner.invoke(config_cmd, [
                     '--author', 'New Author',
                     '--license', 'Apache-2.0',
@@ -235,7 +235,7 @@ class TestConfigCommand:
     
     def test_config_update_existing_config(self, cli_runner, temp_config_dir):
         """Test config command updates existing configuration"""
-        config_file = temp_config_dir / "jugen.toml"
+        config_file = temp_config_dir / "jtc.toml"
         existing_config = {
             "default": {
                 "author": "Old Author",
@@ -243,9 +243,9 @@ class TestConfigCommand:
             }
         }
         
-        with patch('jugen.cli.get_config_path', return_value=config_file):
-            with patch('jugen.cli.load_config', return_value=existing_config):
-                with patch('jugen.cli.save_config') as mock_save:
+        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
+            with patch('juliapkgtemplates.cli.load_config', return_value=existing_config):
+                with patch('juliapkgtemplates.cli.save_config') as mock_save:
                     result = cli_runner.invoke(config_cmd, [
                         '--author', 'Updated Author'
                     ])

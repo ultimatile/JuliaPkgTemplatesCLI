@@ -7,7 +7,7 @@ import subprocess
 from pathlib import Path
 from unittest.mock import Mock, patch, MagicMock
 
-from jugen.generator import JuliaPackageGenerator
+from juliapkgtemplates.generator import JuliaPackageGenerator
 
 
 class TestJuliaPackageGenerator:
@@ -328,8 +328,8 @@ class TestJuliaPackageGenerator:
         assert deps["pkgtemplates"] is False
         assert deps["mise"] is True
     
-    @patch('jugen.generator.JuliaPackageGenerator._call_julia_generator')
-    @patch('jugen.generator.JuliaPackageGenerator._add_mise_config')
+    @patch('juliapkgtemplates.generator.JuliaPackageGenerator._call_julia_generator')
+    @patch('juliapkgtemplates.generator.JuliaPackageGenerator._add_mise_config')
     def test_create_package_integration(self, mock_mise, mock_julia, temp_dir):
         """Test full create_package workflow"""
         generator = JuliaPackageGenerator()

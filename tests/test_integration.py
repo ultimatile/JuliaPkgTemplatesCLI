@@ -9,13 +9,13 @@ from pathlib import Path
 from unittest.mock import patch, Mock
 from click.testing import CliRunner
 
-from jugen.cli import main
+from juliapkgtemplates.cli import main
 
 
 class TestEndToEndWorkflows:
     """Test complete workflows from CLI to package creation"""
     
-    @patch('jugen.generator.subprocess.run')
+    @patch('juliapkgtemplates.generator.subprocess.run')
     def test_complete_package_creation_workflow(self, mock_subprocess, temp_dir):
         """Test complete package creation from CLI command"""
         runner = CliRunner()
@@ -61,7 +61,7 @@ class TestEndToEndWorkflows:
         temp_dir_found = any(str(temp_dir) in arg or str(temp_dir.resolve()) in arg for arg in call_args)
         assert temp_dir_found
     
-    @patch('jugen.generator.subprocess.run')
+    @patch('juliapkgtemplates.generator.subprocess.run')
     def test_config_then_create_workflow(self, mock_subprocess, temp_dir):
         """Test setting config then creating package"""
         runner = CliRunner()
@@ -100,7 +100,7 @@ class TestEndToEndWorkflows:
             assert create_result.exit_code == 0
             assert "Author: Configured Author" in create_result.output
     
-    @patch('jugen.generator.subprocess.run')
+    @patch('juliapkgtemplates.generator.subprocess.run')
     def test_minimal_template_workflow(self, mock_subprocess, temp_dir):
         """Test creating package with minimal template"""
         runner = CliRunner()
@@ -135,7 +135,7 @@ class TestEndToEndWorkflows:
         assert 'GitHubActions()' not in plugins_str
         assert 'Codecov()' not in plugins_str
     
-    @patch('jugen.generator.subprocess.run')
+    @patch('juliapkgtemplates.generator.subprocess.run')
     def test_full_template_workflow(self, mock_subprocess, temp_dir):
         """Test creating package with full template"""
         runner = CliRunner()
@@ -172,7 +172,7 @@ class TestEndToEndWorkflows:
     
     def test_dependency_check_workflow(self):
         """Test dependency checking workflow"""
-        from jugen.generator import JuliaPackageGenerator
+        from juliapkgtemplates.generator import JuliaPackageGenerator
         
         with patch('subprocess.run') as mock_run:
             # Mock all dependencies available
@@ -187,7 +187,7 @@ class TestEndToEndWorkflows:
             # Verify all dependency checks were made
             assert mock_run.call_count == 3
     
-    @patch('jugen.generator.subprocess.run')
+    @patch('juliapkgtemplates.generator.subprocess.run')
     def test_error_handling_workflow(self, mock_subprocess, temp_dir):
         """Test error handling in complete workflow"""
         runner = CliRunner()
@@ -226,7 +226,7 @@ class TestEndToEndWorkflows:
         assert result.exit_code == 1
         assert "Package name must contain only letters, numbers, hyphens, and underscores" in result.output
     
-    @patch('jugen.generator.subprocess.run')
+    @patch('juliapkgtemplates.generator.subprocess.run')
     def test_mise_config_integration(self, mock_subprocess, temp_dir):
         """Test that mise configuration is properly integrated"""
         runner = CliRunner()
@@ -243,7 +243,7 @@ class TestEndToEndWorkflows:
         package_dir.mkdir()
         
         # Mock mise template
-        with patch('jugen.generator.JuliaPackageGenerator._add_mise_config') as mock_mise:
+        with patch('juliapkgtemplates.generator.JuliaPackageGenerator._add_mise_config') as mock_mise:
             result = runner.invoke(main, [
                 'create', package_name,
                 '--author', 'Mise Author',
@@ -261,8 +261,8 @@ class TestEndToEndWorkflows:
         """Test interactive author prompting workflow"""
         runner = CliRunner()
         
-        with patch('jugen.generator.subprocess.run') as mock_subprocess:
-            with patch('jugen.cli.load_config', return_value={}):
+        with patch('juliapkgtemplates.generator.subprocess.run') as mock_subprocess:
+            with patch('juliapkgtemplates.cli.load_config', return_value={}):
                 mock_subprocess.return_value = Mock(
                     returncode=0,
                     stdout="Package created successfully",
