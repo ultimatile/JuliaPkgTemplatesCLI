@@ -37,7 +37,7 @@ uv tool install .
 
 ## Prerequisites
 
-- Python 3.8 or higher
+- Python 3.11 or higher
 - Julia 1.6 or higher
 - PkgTemplates.jl installed in Julia
 - mise (optional, for mise task integration)
@@ -60,13 +60,16 @@ jtc create MyPackage
 jtc create MyPackage --author "Your Name" --output-dir ~/projects
 
 # Create a package with specific template and license
-jtc create MyPackage --template full --license Apache-2.0
+jtc create MyPackage --template full --license Apache2
 
 # Create a package without documentation or CI
 jtc create MyPackage --no-docs --no-ci
 
 # Create a package with specific JuliaFormatter style
 jtc create MyPackage --formatter-style blue
+
+# Create a package inside existing Git repository (not recommended)
+jtc create MyPackage --force-in-git-repo
 
 # Configure default settings (see Configuration section)
 jtc config --author "Your Name" --license MIT --template standard
@@ -86,7 +89,7 @@ jtc supports user-configurable defaults to streamline package creation. Configur
 jtc config --author "Your Name"
 
 # Set default license
-jtc config --license Apache-2.0
+jtc config --license Apache2
 
 # Set default template type
 jtc config --template full
@@ -121,7 +124,7 @@ For example, if you have `author = "Config Author"` in your config file but run 
 ### Available Options
 
 - **author**: Default author name for packages
-- **license**: Default license type (`MIT`, `Apache-2.0`, `BSD-3-Clause`, `GPL-3.0`)
+- **license**: Default license type (`MIT`, `Apache2`, `BSD3`, `GPL3`, `MPL`)
 - **template**: Default template type (`minimal`, `standard`, `full`)
 - **formatter_style**: Default JuliaFormatter style (`nostyle`, `sciml`, `blue`, `yas`)
 
@@ -130,6 +133,20 @@ For example, if you have `author = "Config Author"` in your config file but run 
 Configuration files are stored in `~/.config/jtc/config.toml` (Linux/macOS).
 
 If `XDG_CONFIG_HOME` environment variable is set, that location will be used instead.
+
+## Git Repository Safety
+
+By default, `jtc` prevents package creation inside existing Git repositories to avoid conflicts. If you need to create a package within an existing Git repository, use the `--force-in-git-repo` flag:
+
+```bash
+# This will fail if run inside a Git repository
+jtc create MyPackage
+
+# This will succeed even inside a Git repository
+jtc create MyPackage --force-in-git-repo
+```
+
+This safety feature helps prevent accidentally creating nested Git repositories or conflicts with existing version control.
 
 ## Alpha Release Notes
 
@@ -147,6 +164,7 @@ For development setup:
 git clone https://github.com/ultimatile/JuliaPkgTemplatesCLI.git
 cd JuliaPkgTemplatesCLI
 uv sync
-uv run jtc # Run the command
-uv run pytest  # Run tests
+uv run jtc --help  # Run the command
+uv run pytest     # Run tests
+uv run pyright    # Type checking
 ```
