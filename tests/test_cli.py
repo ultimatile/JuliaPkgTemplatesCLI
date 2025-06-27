@@ -139,7 +139,7 @@ class TestCreateCommand:
             mock_load_config.return_value = {
                 "default": {
                     "author": "Config Author",
-                    "license": "Apache-2.0",
+                    "license": "Apache",
                     "template": "full"
                 }
             }
@@ -161,7 +161,7 @@ class TestCreateCommand:
                 # Check that config values were used
                 call_args = mock_instance.create_package.call_args
                 assert call_args[1]['author'] == "Config Author"
-                assert call_args[1]['license_type'] == "Apache-2.0"
+                assert call_args[1]['license_type'] == "Apache"
                 assert call_args[1]['template'] == "full"
     
     def test_create_no_author_delegates_to_pkgtemplates(self, cli_runner, temp_dir):
@@ -226,13 +226,13 @@ class TestConfigCommand:
             with patch('juliapkgtemplates.cli.load_config', return_value={}):
                 result = cli_runner.invoke(config_cmd, [
                     '--author', 'New Author',
-                    '--license', 'Apache2',
+                    '--license', 'Apache',
                     '--template', 'full'
                 ])
                 
                 assert result.exit_code == 0
                 assert "Set default author: New Author" in result.output
-                assert "Set default license: Apache2" in result.output
+                assert "Set default license: Apache" in result.output
                 assert "Set default template: full" in result.output
     
     def test_config_update_existing_config(self, cli_runner, temp_config_dir):

@@ -59,7 +59,7 @@ class TestJuliaPackageGenerator:
         
         plugins = generator._get_plugins(
             template="standard",
-            license_type="Apache-2.0",
+            license_type="Apache",
             with_docs=True,
             with_ci=True,
             with_codecov=True,
@@ -76,7 +76,7 @@ class TestJuliaPackageGenerator:
         
         expected_plugins = [
             'ProjectFile(; version=v"0.0.1")',
-            'License(; name="Apache-2.0")',
+            'License(; name="ASL")',
             "Git(; manifest=true)",
             'Formatter(; style="sciml")',
             'Tests(; project=true)',
@@ -85,7 +85,7 @@ class TestJuliaPackageGenerator:
         ]
         
         assert plugins["plugins"] == expected_plugins
-        assert plugins["license_type"] == "Apache-2.0"
+        assert plugins["license_type"] == "Apache"
     
     def test_get_plugins_standard_no_ci_codecov(self):
         """Test standard template without CI and Codecov"""
@@ -124,7 +124,7 @@ class TestJuliaPackageGenerator:
         
         plugins = generator._get_plugins(
             template="full",
-            license_type="BSD-3-Clause",
+            license_type="BSD3",
             with_docs=True,
             with_ci=True,
             with_codecov=True,
@@ -141,7 +141,7 @@ class TestJuliaPackageGenerator:
         
         expected_plugins = [
             'ProjectFile(; version=v"0.0.1")',
-            'License(; name="BSD-3-Clause")',
+            'License(; name="BSD3")',
             "Git(; manifest=true)",
             'Formatter(; style="yas")',
             'Tests(; project=true)',
