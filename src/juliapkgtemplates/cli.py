@@ -72,6 +72,7 @@ def save_config(config: dict) -> None:
         sys.exit(1)
 
 
+
 @click.group()
 @click.version_option(package_name="JuliaPkgTemplatesCLI")
 def main():
@@ -97,7 +98,7 @@ def main():
 )
 @click.option(
     "--license",
-    type=click.Choice(["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0"]),
+    type=click.Choice(["MIT", "Apache2", "BSD3", "GPL3", "MPL"]),
     help="License type (default: MIT or config value)",
 )
 @click.option(
@@ -118,6 +119,44 @@ def main():
     type=click.Choice(["nostyle", "sciml", "blue", "yas"]),
     help="JuliaFormatter style (default: nostyle or config value)",
 )
+@click.option(
+    "--julia-version",
+    help="Julia version constraint (e.g., v\"1.10.9\") for Template constructor",
+)
+@click.option(
+    "--ssh/--no-ssh",
+    default=None,
+    help="Use SSH for Git operations (default: False or config value)",
+)
+@click.option(
+    "--ignore-patterns",
+    help="Comma-separated list of patterns to ignore in Git (e.g., .vscode,.DS_Store)",
+)
+@click.option(
+    "--tests-aqua/--no-tests-aqua",
+    default=None,
+    help="Enable Aqua.jl in Tests plugin (default: False or config value)",
+)
+@click.option(
+    "--tests-jet/--no-tests-jet",
+    default=None,
+    help="Enable JET.jl in Tests plugin (default: False or config value)",
+)
+@click.option(
+    "--tests-project/--no-tests-project",
+    default=None,
+    help="Enable separate project for tests (default: True or config value)",
+)
+@click.option(
+    "--project-version",
+    help="Initial version for ProjectFile plugin (e.g., v\"0.0.1\")",
+)
+@click.option(
+    "--force-in-git-repo",
+    is_flag=True,
+    default=False,
+    help="Force package creation inside existing Git repository (not recommended)",
+)
 @click.pass_context
 def create(
     ctx: click.Context,
@@ -130,6 +169,14 @@ def create(
     with_ci: bool,
     with_codecov: bool,
     formatter_style: Optional[str],
+    julia_version: Optional[str],
+    ssh: Optional[bool],
+    ignore_patterns: Optional[str],
+    tests_aqua: Optional[bool],
+    tests_jet: Optional[bool],
+    tests_project: Optional[bool],
+    project_version: Optional[str],
+    force_in_git_repo: bool,
 ):
     """Create a new Julia package"""
 
@@ -165,6 +212,27 @@ def create(
     if formatter_style is None:
         formatter_style = defaults.get("formatter_style", "nostyle")
 
+    if julia_version is None:
+        julia_version = defaults.get("julia_version")
+
+    if ssh is None:
+        ssh = defaults.get("ssh", False)
+
+    if ignore_patterns is None:
+        ignore_patterns = defaults.get("ignore_patterns")
+
+    if tests_aqua is None:
+        tests_aqua = defaults.get("tests_aqua", False)
+
+    if tests_jet is None:
+        tests_jet = defaults.get("tests_jet", False)
+
+    if tests_project is None:
+        tests_project = defaults.get("tests_project", True)
+
+    if project_version is None:
+        project_version = defaults.get("project_version")
+
     click.echo(f"Creating Julia package: {package_name}")
     click.echo(f"Author: {author}")
     click.echo(f"Template: {template}")
@@ -182,6 +250,14 @@ def create(
             with_ci=with_ci,
             with_codecov=with_codecov,
             formatter_style=formatter_style,
+            julia_version=julia_version,
+            ssh=ssh,
+            ignore_patterns=ignore_patterns,
+            tests_aqua=tests_aqua,
+            tests_jet=tests_jet,
+            tests_project=tests_project,
+            project_version=project_version,
+            force_in_git_repo=force_in_git_repo,
         )
 
         click.echo(f"\nPackage created successfully at: {package_dir}")
@@ -200,7 +276,7 @@ def create(
 @click.option("--author", "-a", help="Default author name")
 @click.option(
     "--license",
-    type=click.Choice(["MIT", "Apache-2.0", "BSD-3-Clause", "GPL-3.0"]),
+    type=click.Choice(["MIT", "Apache2", "BSD3", "GPL3", "MPL"]),
     help="Default license type",
 )
 @click.option(
@@ -213,7 +289,51 @@ def create(
     type=click.Choice(["nostyle", "sciml", "blue", "yas"]),
     help="Default JuliaFormatter style",
 )
-def config(author: Optional[str], license: Optional[str], template: Optional[str], formatter_style: Optional[str]):
+@click.option(
+    "--julia-version",
+    help="Default Julia version constraint",
+)
+@click.option(
+    "--ssh/--no-ssh",
+    default=None,
+    help="Default SSH setting for Git operations",
+)
+@click.option(
+    "--ignore-patterns",
+    help="Default comma-separated list of Git ignore patterns",
+)
+@click.option(
+    "--tests-aqua/--no-tests-aqua",
+    default=None,
+    help="Default Aqua.jl setting for Tests plugin",
+)
+@click.option(
+    "--tests-jet/--no-tests-jet",
+    default=None,
+    help="Default JET.jl setting for Tests plugin",
+)
+@click.option(
+    "--tests-project/--no-tests-project",
+    default=None,
+    help="Default separate project setting for tests",
+)
+@click.option(
+    "--project-version",
+    help="Default initial version for ProjectFile plugin",
+)
+def config(
+    author: Optional[str],
+    license: Optional[str],
+    template: Optional[str],
+    formatter_style: Optional[str],
+    julia_version: Optional[str],
+    ssh: Optional[bool],
+    ignore_patterns: Optional[str],
+    tests_aqua: Optional[bool],
+    tests_jet: Optional[bool],
+    tests_project: Optional[bool],
+    project_version: Optional[str],
+):
     """Configure default settings"""
     config = load_config()
 
@@ -236,6 +356,34 @@ def config(author: Optional[str], license: Optional[str], template: Optional[str
     if formatter_style:
         config["default"]["formatter_style"] = formatter_style
         click.echo(f"Set default formatter style: {formatter_style}")
+
+    if julia_version:
+        config["default"]["julia_version"] = julia_version
+        click.echo(f"Set default Julia version: {julia_version}")
+
+    if ssh is not None:
+        config["default"]["ssh"] = ssh
+        click.echo(f"Set default SSH: {ssh}")
+
+    if ignore_patterns:
+        config["default"]["ignore_patterns"] = ignore_patterns
+        click.echo(f"Set default ignore patterns: {ignore_patterns}")
+
+    if tests_aqua is not None:
+        config["default"]["tests_aqua"] = tests_aqua
+        click.echo(f"Set default tests Aqua: {tests_aqua}")
+
+    if tests_jet is not None:
+        config["default"]["tests_jet"] = tests_jet
+        click.echo(f"Set default tests JET: {tests_jet}")
+
+    if tests_project is not None:
+        config["default"]["tests_project"] = tests_project
+        click.echo(f"Set default tests project: {tests_project}")
+
+    if project_version:
+        config["default"]["project_version"] = project_version
+        click.echo(f"Set default project version: {project_version}")
 
     # Save config
     save_config(config)

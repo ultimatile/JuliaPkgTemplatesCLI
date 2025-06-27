@@ -34,6 +34,14 @@ class JuliaPackageGenerator:
         with_ci: bool = True,
         with_codecov: bool = True,
         formatter_style: str = "nostyle",
+        julia_version: str = None,
+        ssh: bool = False,
+        ignore_patterns: str = None,
+        tests_aqua: bool = False,
+        tests_jet: bool = False,
+        tests_project: bool = True,
+        project_version: str = None,
+        force_in_git_repo: bool = False,
     ) -> Path:
         """
         Create a new Julia package using PkgTemplates.jl
@@ -48,6 +56,13 @@ class JuliaPackageGenerator:
             with_ci: Include CI/CD
             with_codecov: Include Codecov
             formatter_style: JuliaFormatter style (nostyle, sciml, blue, yas)
+            julia_version: Julia version constraint for Template constructor
+            ssh: Use SSH for Git operations
+            ignore_patterns: Comma-separated list of patterns to ignore in Git
+            tests_aqua: Enable Aqua.jl in Tests plugin
+            tests_jet: Enable JET.jl in Tests plugin
+            tests_project: Enable separate project for tests
+            project_version: Initial version for ProjectFile plugin
 
         Returns:
             Path to the created package directory
@@ -56,15 +71,38 @@ class JuliaPackageGenerator:
         output_dir = Path(output_dir).resolve()
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
+        
+        # Check if output directory is inside a Git repository
+        is_in_git_repo = self._is_in_git_repository(output_dir)
+        if is_in_git_repo and not force_in_git_repo:
+            raise RuntimeError(
+                "Cannot create package inside existing Git repository. "
+                "This may cause conflicts with PkgTemplates.jl. "
+                "Use --force-in-git-repo to override (not recommended) or "
+                "specify an output directory outside the Git repository."
+            )
 
         # Determine plugins based on template type
         plugins = self._get_plugins(
-            template, license_type, with_docs, with_ci, with_codecov, formatter_style
+            template,
+            license_type,
+            with_docs,
+            with_ci,
+            with_codecov,
+            formatter_style,
+            ssh,
+            ignore_patterns,
+            tests_aqua,
+            tests_jet,
+            tests_project,
+            project_version,
+            is_in_git_repo,
+            force_in_git_repo,
         )
 
         # Call Julia script to create package
         package_dir = self._call_julia_generator(
-            package_name, author, output_dir, plugins
+            package_name, author, output_dir, plugins, julia_version
         )
 
         # Add mise configuration
@@ -80,29 +118,74 @@ class JuliaPackageGenerator:
         with_ci: bool,
         with_codecov: bool,
         formatter_style: str,
+        ssh: bool,
+        ignore_patterns: str,
+        tests_aqua: bool,
+        tests_jet: bool,
+        tests_project: bool,
+        project_version: str,
+        is_in_git_repo: bool,
+        force_in_git_repo: bool,
     ) -> Dict[str, Any]:
         """Get PkgTemplates.jl plugins configuration"""
-        base_plugins = [
-            f'License(; name="{license_type}")',
-            "Git(; manifest=true)",
-            f'Formatter(; style="{formatter_style}")',
-        ]
+        base_plugins = []
+        
+        # Add ProjectFile plugin with version if specified
+        if project_version:
+            base_plugins.append(f'ProjectFile(; version=v"{project_version}")')
+        else:
+            base_plugins.append('ProjectFile(; version=v"0.0.1")')
+        
+        # Add License plugin
+        base_plugins.append(f'License(; name="{license_type}")')
+        
+        # Add Git plugin if not in a Git repository, or if force flag is used
+        if not is_in_git_repo or force_in_git_repo:
+            git_options = ["manifest=true"]
+            if ssh:
+                git_options.append("ssh=true")
+            if ignore_patterns:
+                # Parse comma-separated patterns and format as Julia array
+                patterns = [f'"{p.strip()}"' for p in ignore_patterns.split(',') if p.strip()]
+                git_options.append(f'ignore=[{", ".join(patterns)}]')
+            git_plugin = f'Git(; {", ".join(git_options)})'
+            base_plugins.append(git_plugin)
+        
+        # Add Formatter plugin
+        base_plugins.append(f'Formatter(; style="{formatter_style}")')
+        
+        # Add Tests plugin with aqua and jet options
+        test_options = []
+        if tests_project:
+            test_options.append("project=true")
+        if tests_aqua:
+            test_options.append("aqua=true")
+        if tests_jet:
+            test_options.append("jet=true")
+        if test_options:
+            tests_plugin = f'Tests(; {", ".join(test_options)})'
+            base_plugins.append(tests_plugin)
 
         if template == "minimal":
             plugins = base_plugins
         elif template == "standard":
-            plugins = base_plugins + [
-                "GitHubActions()" if with_ci else None,
-                "Codecov()" if with_codecov else None,
-            ]
+            additional_plugins = []
+            if with_ci and (not is_in_git_repo or force_in_git_repo):
+                additional_plugins.append("GitHubActions()")
+            if with_codecov and (not is_in_git_repo or force_in_git_repo):
+                additional_plugins.append("Codecov()")
+            plugins = base_plugins + additional_plugins
         elif template == "full":
-            plugins = base_plugins + [
-                "GitHubActions()" if with_ci else None,
-                "Codecov()" if with_codecov else None,
-                "Documenter{GitHubActions}()" if with_docs else None,
-                "TagBot()",
-                "CompatHelper()",
-            ]
+            additional_plugins = []
+            if with_ci and (not is_in_git_repo or force_in_git_repo):
+                additional_plugins.append("GitHubActions()")
+            if with_codecov and (not is_in_git_repo or force_in_git_repo):
+                additional_plugins.append("Codecov()")
+            if with_docs and (not is_in_git_repo or force_in_git_repo):
+                additional_plugins.append("Documenter{GitHubActions}()")
+            if not is_in_git_repo or force_in_git_repo:
+                additional_plugins.extend(["TagBot()", "CompatHelper()"])
+            plugins = base_plugins + additional_plugins
         else:
             raise ValueError(f"Unknown template type: {template}")
 
@@ -118,7 +201,7 @@ class JuliaPackageGenerator:
         }
 
     def _call_julia_generator(
-        self, package_name: str, author: str, output_dir: Path, plugins: Dict[str, Any]
+        self, package_name: str, author: str, output_dir: Path, plugins: Dict[str, Any], julia_version: str = None
     ) -> Path:
         """Call Julia script to generate package"""
         julia_script = self.scripts_dir / "pkg_generator.jl"
@@ -138,6 +221,10 @@ class JuliaPackageGenerator:
             str(output_dir),
             plugins_str,
         ]
+        
+        # Add Julia version if specified
+        if julia_version:
+            cmd.append(julia_version)
 
 
         try:
@@ -225,3 +312,16 @@ class JuliaPackageGenerator:
             dependencies["mise"] = False
 
         return dependencies
+
+    @staticmethod
+    def _is_in_git_repository(path: Path) -> bool:
+        """Check if the given path is inside a Git repository"""
+        current_path = path.resolve()
+        
+        # Walk up the directory tree looking for .git directory
+        while current_path != current_path.parent:
+            if (current_path / ".git").exists():
+                return True
+            current_path = current_path.parent
+        
+        return False

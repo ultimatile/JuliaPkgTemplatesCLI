@@ -2,12 +2,9 @@
 Tests for CLI module
 """
 
-import pytest
 import os
-import tempfile
 from pathlib import Path
-from unittest.mock import patch, mock_open, Mock
-from click.testing import CliRunner
+from unittest.mock import patch, Mock
 
 from juliapkgtemplates.cli import (
     main, 
@@ -225,13 +222,13 @@ class TestConfigCommand:
             with patch('juliapkgtemplates.cli.load_config', return_value={}):
                 result = cli_runner.invoke(config_cmd, [
                     '--author', 'New Author',
-                    '--license', 'Apache-2.0',
+                    '--license', 'Apache2',
                     '--template', 'full'
                 ])
                 
                 assert result.exit_code == 0
                 assert "Set default author: New Author" in result.output
-                assert "Set default license: Apache-2.0" in result.output
+                assert "Set default license: Apache2" in result.output
                 assert "Set default template: full" in result.output
     
     def test_config_update_existing_config(self, cli_runner, temp_config_dir):
