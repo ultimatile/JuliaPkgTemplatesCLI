@@ -59,7 +59,7 @@ class JuliaPackageGenerator:
         user: Optional[str],
         output_dir: Path,
         template: str = "standard",
-        license_type: str = "MIT",
+        license_type: Optional[str] = None,
         with_docs: bool = True,
         with_ci: bool = True,
         with_codecov: bool = True,
@@ -127,7 +127,7 @@ class JuliaPackageGenerator:
     def _get_plugins(
         self,
         template: str,
-        license_type: str,
+        license_type: Optional[str],
         with_docs: bool,
         with_ci: bool,
         with_codecov: bool,
@@ -145,8 +145,9 @@ class JuliaPackageGenerator:
         version = project_version or "0.0.1"
         base_plugins.append(f'ProjectFile(; version=v"{version}")')
 
-        mapped_license = self._map_license(license_type)
-        base_plugins.append(f'License(; name="{mapped_license}")')
+        if license_type:
+            mapped_license = self._map_license(license_type)
+            base_plugins.append(f'License(; name="{mapped_license}")')
 
         git_options = ["manifest=true"]
         if ssh:
