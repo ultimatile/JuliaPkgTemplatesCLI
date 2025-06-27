@@ -4,7 +4,7 @@ Julia package generator using PkgTemplates.jl and Jinja2
 
 import subprocess
 from pathlib import Path
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -34,13 +34,13 @@ class JuliaPackageGenerator:
         with_ci: bool = True,
         with_codecov: bool = True,
         formatter_style: str = "nostyle",
-        julia_version: str = None,
+        julia_version: Optional[str] = None,
         ssh: bool = False,
-        ignore_patterns: str = None,
+        ignore_patterns: Optional[str] = None,
         tests_aqua: bool = False,
         tests_jet: bool = False,
         tests_project: bool = True,
-        project_version: str = None,
+        project_version: Optional[str] = None,
         force_in_git_repo: bool = False,
     ) -> Path:
         """
@@ -119,11 +119,11 @@ class JuliaPackageGenerator:
         with_codecov: bool,
         formatter_style: str,
         ssh: bool,
-        ignore_patterns: str,
+        ignore_patterns: Optional[str],
         tests_aqua: bool,
         tests_jet: bool,
         tests_project: bool,
-        project_version: str,
+        project_version: Optional[str],
         is_in_git_repo: bool,
         force_in_git_repo: bool,
     ) -> Dict[str, Any]:
@@ -131,10 +131,8 @@ class JuliaPackageGenerator:
         base_plugins = []
 
         # Add ProjectFile plugin with version if specified
-        if project_version:
-            base_plugins.append(f'ProjectFile(; version=v"{project_version}")')
-        else:
-            base_plugins.append('ProjectFile(; version=v"0.0.1")')
+        version = project_version or "0.0.1"
+        base_plugins.append(f'ProjectFile(; version=v"{version}")')
 
         # Add License plugin
         base_plugins.append(f'License(; name="{license_type}")')
@@ -208,7 +206,7 @@ class JuliaPackageGenerator:
         author: str,
         output_dir: Path,
         plugins: Dict[str, Any],
-        julia_version: str = None,
+        julia_version: Optional[str] = None,
     ) -> Path:
         """Call Julia script to generate package"""
         julia_script = self.scripts_dir / "pkg_generator.jl"
