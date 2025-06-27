@@ -228,7 +228,6 @@ def create(
 ):
     """Create a new Julia package"""
 
-    # Validate package name
     if not package_name.replace("_", "").replace("-", "").isalnum():
         click.echo(
             "Error: Package name must contain only letters, numbers, hyphens, and underscores",
@@ -240,7 +239,6 @@ def create(
         click.echo("Error: Package name must start with a letter", err=True)
         sys.exit(1)
 
-    # Load config for defaults
     config = load_config()
     defaults = config.get("default", {})
 
@@ -252,7 +250,6 @@ def create(
     if not user:
         user = defaults.get("user") or None
 
-    # Apply config defaults for other options if not explicitly set
     if license is None:
         license = defaults.get("license") or "MIT"
 
@@ -405,7 +402,6 @@ def config(
     """Configure default settings"""
     config = load_config()
 
-    # Update config
     if "default" not in config:
         config["default"] = {}
 
@@ -457,7 +453,6 @@ def config(
         config["default"]["project_version"] = project_version
         click.echo(f"Set default project version: {project_version}")
 
-    # Save config
     save_config(config)
     click.echo(f"Configuration saved to: {get_config_path()}")
 
