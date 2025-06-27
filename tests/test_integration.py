@@ -266,8 +266,8 @@ class TestEndToEndWorkflows:
             mise_call_args = mock_mise.call_args
             assert mise_call_args[0][1] == package_name
     
-    def test_interactive_author_prompt_workflow(self, temp_dir):
-        """Test interactive author prompting workflow"""
+    def test_no_author_delegates_to_pkgtemplates_workflow(self, temp_dir):
+        """Test workflow when no author is provided - delegates to PkgTemplates.jl"""
         runner = CliRunner()
         
         with patch('juliapkgtemplates.generator.subprocess.run') as mock_subprocess:
@@ -281,12 +281,13 @@ class TestEndToEndWorkflows:
                 package_dir = temp_dir / "InteractivePackage"
                 package_dir.mkdir()
                 
-                # Test that prompt appears when no author is provided
+                # Test that no prompt appears and PkgTemplates.jl handles author
                 result = runner.invoke(main, [
                     'create', 'InteractivePackage',
                     '--output-dir', str(temp_dir)
-                ], input='Interactive Author\n')
+                ])
                 
                 assert result.exit_code == 0
-                assert "Author name:" in result.output
-                assert "Author: Interactive Author" in result.output
+                assert "Author: None" in result.output
+                # Verify subprocess was called (indicating PkgTemplates.jl handles the author)
+                mock_subprocess.assert_called_once()

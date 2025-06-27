@@ -2,13 +2,11 @@
 Integration tests for Git-related functionality
 """
 
-import pytest
 from unittest.mock import patch, Mock
 from click.testing import CliRunner
 
 from juliapkgtemplates.cli import main
 from juliapkgtemplates.generator import JuliaPackageGenerator
-from .test_helpers import isolated_dir, test_git_repo, mock_git_not_in_repo, mock_git_in_repo
 
 
 class TestGitIntegration:

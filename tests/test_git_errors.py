@@ -3,7 +3,6 @@ Test Git error handling and force flag behavior
 """
 
 import pytest
-from pathlib import Path
 from unittest.mock import patch, Mock
 from click.testing import CliRunner
 
