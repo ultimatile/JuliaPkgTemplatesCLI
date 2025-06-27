@@ -36,51 +36,5 @@ def isolated_dir() -> Generator[Path, None, None]:
             shutil.rmtree(temp_dir, ignore_errors=True)
 
 
-@pytest.fixture
-def mock_git_not_in_repo():
-    """Mock Git detection to return False (not in Git repo)"""
-    from unittest.mock import patch
-    with patch('juliapkgtemplates.generator.JuliaPackageGenerator._is_in_git_repository', return_value=False):
-        yield
 
 
-@pytest.fixture
-def mock_git_in_repo():
-    """Mock Git detection to return True (in Git repo)"""
-    from unittest.mock import patch
-    with patch('juliapkgtemplates.generator.JuliaPackageGenerator._is_in_git_repository', return_value=True):
-        yield
-
-
-def create_test_git_repo(path: Path) -> Path:
-    """
-    Create a test Git repository at the given path.
-    
-    Args:
-        path: Directory where to create the Git repository
-        
-    Returns:
-        Path to the created Git repository
-    """
-    import subprocess
-    
-    path.mkdir(parents=True, exist_ok=True)
-    
-    # Initialize Git repository
-    subprocess.run(['git', 'init'], cwd=path, check=True, capture_output=True)
-    subprocess.run(['git', 'config', 'user.name', 'Test User'], cwd=path, check=True, capture_output=True)
-    subprocess.run(['git', 'config', 'user.email', 'test@example.com'], cwd=path, check=True, capture_output=True)
-    
-    # Create initial commit
-    readme = path / "README.md"
-    readme.write_text("# Test Repository")
-    subprocess.run(['git', 'add', 'README.md'], cwd=path, check=True, capture_output=True)
-    subprocess.run(['git', 'commit', '-m', 'Initial commit'], cwd=path, check=True, capture_output=True)
-    
-    return path
-
-
-@pytest.fixture
-def test_git_repo(isolated_dir: Path) -> Path:
-    """Create a test Git repository in an isolated directory"""
-    return create_test_git_repo(isolated_dir / "test_repo")

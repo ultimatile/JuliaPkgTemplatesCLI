@@ -162,12 +162,6 @@ def main():
     "--project-version",
     help="Initial version for ProjectFile plugin (e.g., v\"0.0.1\")",
 )
-@click.option(
-    "--force-in-git-repo",
-    is_flag=True,
-    default=False,
-    help="Force package creation inside existing Git repository (not recommended)",
-)
 @click.pass_context
 def create(
     ctx: click.Context,
@@ -187,7 +181,6 @@ def create(
     tests_jet: Optional[bool],
     tests_project: Optional[bool],
     project_version: Optional[str],
-    force_in_git_repo: bool,
 ):
     """Create a new Julia package"""
 
@@ -266,7 +259,6 @@ def create(
             tests_jet=tests_jet,
             tests_project=tests_project,
             project_version=project_version,
-            force_in_git_repo=force_in_git_repo,
         )
 
         click.echo(f"\nPackage created successfully at: {package_dir}")

@@ -36,9 +36,7 @@ class TestJuliaPackageGenerator:
             tests_aqua=False,
             tests_jet=False,
             tests_project=True,
-            project_version=None,
-            is_in_git_repo=False,
-            force_in_git_repo=False
+            project_version=None
         )
         
         expected_plugins = [
@@ -69,9 +67,7 @@ class TestJuliaPackageGenerator:
             tests_aqua=False,
             tests_jet=False,
             tests_project=True,
-            project_version=None,
-            is_in_git_repo=False,
-            force_in_git_repo=False
+            project_version=None
         )
         
         expected_plugins = [
@@ -103,9 +99,7 @@ class TestJuliaPackageGenerator:
             tests_aqua=False,
             tests_jet=False,
             tests_project=True,
-            project_version=None,
-            is_in_git_repo=False,
-            force_in_git_repo=False
+            project_version=None
         )
         
         expected_plugins = [
@@ -134,9 +128,7 @@ class TestJuliaPackageGenerator:
             tests_aqua=False,
             tests_jet=False,
             tests_project=True,
-            project_version=None,
-            is_in_git_repo=False,
-            force_in_git_repo=False
+            project_version=None
         )
         
         expected_plugins = [
@@ -170,9 +162,7 @@ class TestJuliaPackageGenerator:
             tests_aqua=False,
             tests_jet=False,
             tests_project=True,
-            project_version=None,
-            is_in_git_repo=False,
-            force_in_git_repo=False
+            project_version=None
         )
         
         # Should not include Documenter
@@ -197,49 +187,9 @@ class TestJuliaPackageGenerator:
                 tests_aqua=False,
                 tests_jet=False,
                 tests_project=True,
-                project_version=None,
-                is_in_git_repo=False,
-                force_in_git_repo=False
+                project_version=None
             )
     
-    def test_get_plugins_in_git_repo(self):
-        """Test plugin configuration when inside a Git repository"""
-        generator = JuliaPackageGenerator()
-        
-        plugins = generator._get_plugins(
-            template="full",
-            license_type="MIT",
-            with_docs=True,
-            with_ci=True,
-            with_codecov=True,
-            formatter_style="nostyle",
-            ssh=False,
-            ignore_patterns=None,
-            tests_aqua=False,
-            tests_jet=False,
-            tests_project=True,
-            project_version=None,
-            is_in_git_repo=True,
-            force_in_git_repo=False
-        )
-        
-        # Should not include Git-dependent plugins
-        expected_plugins = [
-            'ProjectFile(; version=v"0.0.1")',
-            'License(; name="MIT")',
-            'Formatter(; style="nostyle")',
-            'Tests(; project=true)'
-        ]
-        
-        assert plugins["plugins"] == expected_plugins
-        # Should not contain Git, GitHubActions, Codecov, Documenter, TagBot, CompatHelper
-        plugin_strings = ' '.join(plugins["plugins"])
-        assert "Git(" not in plugin_strings
-        assert "GitHubActions" not in plugin_strings
-        assert "Codecov" not in plugin_strings
-        assert "Documenter" not in plugin_strings
-        assert "TagBot" not in plugin_strings
-        assert "CompatHelper" not in plugin_strings
     
     @patch('subprocess.run')
     def test_call_julia_generator_success(self, mock_run, temp_dir):
