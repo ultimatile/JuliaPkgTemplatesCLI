@@ -96,7 +96,11 @@ def main():
 @main.command()
 @click.argument("package_name")
 @click.option("--author", "-a", help=get_author_help())
-@click.option("--user", "-u", help="Git hosting username for repository URLs and CI")
+@click.option(
+    "--user",
+    "-u",
+    help="Git hosting username for repository URLs and CI (uses git config github.user if not set)",
+)
 @click.option(
     "--output-dir",
     "-o",
