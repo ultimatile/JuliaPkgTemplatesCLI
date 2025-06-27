@@ -68,9 +68,6 @@ jtc create MyPackage --no-docs --no-ci
 # Create a package with specific JuliaFormatter style
 jtc create MyPackage --formatter-style blue
 
-# Create a package inside existing Git repository (not recommended)
-jtc create MyPackage --force-in-git-repo
-
 # Configure default settings (see Configuration section)
 jtc config --author "Your Name" --license MIT --template standard
 
@@ -133,20 +130,6 @@ For example, if you have `author = "Config Author"` in your config file but run 
 Configuration files are stored in `~/.config/jtc/config.toml` (Linux/macOS).
 
 If `XDG_CONFIG_HOME` environment variable is set, that location will be used instead.
-
-## Git Repository Safety
-
-By default, `jtc` prevents package creation inside existing Git repositories to avoid conflicts. If you need to create a package within an existing Git repository, use the `--force-in-git-repo` flag:
-
-```bash
-# This will fail if run inside a Git repository
-jtc create MyPackage
-
-# This will succeed even inside a Git repository
-jtc create MyPackage --force-in-git-repo
-```
-
-This safety feature helps prevent accidentally creating nested Git repositories or conflicts with existing version control.
 
 ## Alpha Release Notes
 
