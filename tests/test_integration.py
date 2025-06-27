@@ -2,6 +2,7 @@
 Integration tests for end-to-end workflows
 """
 
+from pathlib import Path
 from unittest.mock import patch, Mock
 from click.testing import CliRunner
 
@@ -78,27 +79,31 @@ class TestEndToEndWorkflows:
         package_dir.mkdir()
         
         with runner.isolated_filesystem():
-            # First, set configuration
-            config_result = runner.invoke(main, [
-                'config',
-                '--author', 'Configured Author',
-                '--license', 'Apache',
-                '--template', 'full'
-            ])
-            
-            assert config_result.exit_code == 0
-            assert "Set default author: Configured Author" in config_result.output
-            assert "Set default license: Apache" in config_result.output
-            assert "Set default template: full" in config_result.output
-            
-            # Then create package using defaults
-            create_result = runner.invoke(main, [
-                'create', 'ConfiguredPackage',
-                '--output-dir', str(temp_dir)
-            ])
-            
-            assert create_result.exit_code == 0
-            assert "Author: Configured Author" in create_result.output
+            # Mock config path to prevent overwriting user config
+            with patch('juliapkgtemplates.cli.get_config_path') as mock_config_path:
+                mock_config_path.return_value = Path.cwd() / "test_config.toml"
+                
+                # First, set configuration
+                config_result = runner.invoke(main, [
+                    'config',
+                    '--author', 'Configured Author',
+                    '--license', 'Apache',
+                    '--template', 'full'
+                ])
+                
+                assert config_result.exit_code == 0
+                assert "Set default author: Configured Author" in config_result.output
+                assert "Set default license: Apache" in config_result.output
+                assert "Set default template: full" in config_result.output
+                
+                # Then create package using defaults
+                create_result = runner.invoke(main, [
+                    'create', 'ConfiguredPackage',
+                    '--output-dir', str(temp_dir)
+                ])
+                
+                assert create_result.exit_code == 0
+                assert "Author: Configured Author" in create_result.output
     
     @patch('juliapkgtemplates.generator.JuliaPackageGenerator._is_in_git_repository')
     @patch('juliapkgtemplates.generator.subprocess.run')

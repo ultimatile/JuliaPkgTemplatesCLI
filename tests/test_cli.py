@@ -25,12 +25,13 @@ class TestConfigFunctions:
             config_path = get_config_path()
             assert config_path == temp_config_dir / "jtc" / "config.toml"
     
-    def test_get_config_path_without_xdg_config_home(self):
+    def test_get_config_path_without_xdg_config_home(self, temp_config_dir):
         """Test config path without XDG_CONFIG_HOME"""
         with patch.dict(os.environ, {}, clear=True):
-            config_path = get_config_path()
-            expected = Path.home() / ".config" / "jtc" / "config.toml"
-            assert config_path == expected
+            with patch('pathlib.Path.home', return_value=temp_config_dir):
+                config_path = get_config_path()
+                expected = temp_config_dir / ".config" / "jtc" / "config.toml"
+                assert config_path == expected
 
     def test_load_config_existing_file(self, temp_config_dir):
         """Test loading existing config file"""
@@ -204,40 +205,33 @@ class TestCreateCommand:
 class TestConfigCommand:
     """Test config command"""
     
-    def test_config_set_author(self, cli_runner, temp_config_dir):
+    def test_config_set_author(self, cli_runner, isolated_config):
         """Test config command sets author"""
-        config_file = temp_config_dir / "jtc.toml"
-        
-        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
-            with patch('juliapkgtemplates.cli.load_config', return_value={}):
-                result = cli_runner.invoke(config_cmd, [
-                    '--author', 'New Author'
-                ])
-                
-                assert result.exit_code == 0
-                assert "Set default author: New Author" in result.output
-                assert "Configuration saved" in result.output
+        with patch('juliapkgtemplates.cli.load_config', return_value={}):
+            result = cli_runner.invoke(config_cmd, [
+                '--author', 'New Author'
+            ])
+            
+            assert result.exit_code == 0
+            assert "Set default author: New Author" in result.output
+            assert "Configuration saved" in result.output
     
-    def test_config_set_multiple_options(self, cli_runner, temp_config_dir):
+    def test_config_set_multiple_options(self, cli_runner, isolated_config):
         """Test config command sets multiple options"""
-        config_file = temp_config_dir / "jtc.toml"
-        
-        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
-            with patch('juliapkgtemplates.cli.load_config', return_value={}):
-                result = cli_runner.invoke(config_cmd, [
-                    '--author', 'New Author',
-                    '--license', 'Apache',
-                    '--template', 'full'
-                ])
-                
-                assert result.exit_code == 0
-                assert "Set default author: New Author" in result.output
-                assert "Set default license: Apache" in result.output
-                assert "Set default template: full" in result.output
+        with patch('juliapkgtemplates.cli.load_config', return_value={}):
+            result = cli_runner.invoke(config_cmd, [
+                '--author', 'New Author',
+                '--license', 'Apache',
+                '--template', 'full'
+            ])
+            
+            assert result.exit_code == 0
+            assert "Set default author: New Author" in result.output
+            assert "Set default license: Apache" in result.output
+            assert "Set default template: full" in result.output
     
-    def test_config_update_existing_config(self, cli_runner, temp_config_dir):
+    def test_config_update_existing_config(self, cli_runner, isolated_config):
         """Test config command updates existing configuration"""
-        config_file = temp_config_dir / "jtc.toml"
         existing_config = {
             "default": {
                 "author": "Old Author",
@@ -245,18 +239,17 @@ class TestConfigCommand:
             }
         }
         
-        with patch('juliapkgtemplates.cli.get_config_path', return_value=config_file):
-            with patch('juliapkgtemplates.cli.load_config', return_value=existing_config):
-                with patch('juliapkgtemplates.cli.save_config') as mock_save:
-                    result = cli_runner.invoke(config_cmd, [
-                        '--author', 'Updated Author'
-                    ])
-                    
-                    assert result.exit_code == 0
-                    mock_save.assert_called_once()
-                    saved_config = mock_save.call_args[0][0]
-                    assert saved_config["default"]["author"] == "Updated Author"
-                    assert saved_config["default"]["license"] == "MIT"  # preserved
+        with patch('juliapkgtemplates.cli.load_config', return_value=existing_config):
+            with patch('juliapkgtemplates.cli.save_config') as mock_save:
+                result = cli_runner.invoke(config_cmd, [
+                    '--author', 'Updated Author'
+                ])
+                
+                assert result.exit_code == 0
+                mock_save.assert_called_once()
+                saved_config = mock_save.call_args[0][0]
+                assert saved_config["default"]["author"] == "Updated Author"
+                assert saved_config["default"]["license"] == "MIT"  # preserved
 
 
 class TestMainCommand:
