@@ -16,7 +16,7 @@ class JuliaPackageGenerator:
     LICENSE_MAPPING = {
         "MIT": "MIT",
         "Apache": "ASL",
-        "BSD2": "BSD2", 
+        "BSD2": "BSD2",
         "BSD3": "BSD3",
         "GPL2": "GPL-2.0+",
         "GPL3": "GPL-3.0+",
@@ -25,7 +25,7 @@ class JuliaPackageGenerator:
         "LGPL2": "LGPL-2.1+",
         "LGPL3": "LGPL-3.0+",
         "AGPL3": "AGPL-3.0+",
-        "EUPL": "EUPL-1.2+"
+        "EUPL": "EUPL-1.2+",
     }
 
     def __init__(self):
@@ -42,7 +42,10 @@ class JuliaPackageGenerator:
     def _map_license(self, license_name: str) -> str:
         """Map user-friendly license name to PkgTemplates.jl identifier"""
         mapped_license = self.LICENSE_MAPPING.get(license_name, license_name)
-        if mapped_license == license_name and license_name not in self.LICENSE_MAPPING.values():
+        if (
+            mapped_license == license_name
+            and license_name not in self.LICENSE_MAPPING.values()
+        ):
             # If no mapping found and it's not a valid PkgTemplates.jl license, warn
             print(f"Warning: Unknown license '{license_name}', using as-is")
         return mapped_license
@@ -51,6 +54,7 @@ class JuliaPackageGenerator:
         self,
         package_name: str,
         author: Optional[str],
+        user: Optional[str],
         output_dir: Path,
         template: str = "standard",
         license_type: str = "MIT",
@@ -72,6 +76,7 @@ class JuliaPackageGenerator:
         Args:
             package_name: Name of the package
             author: Author name
+            user: Git hosting username
             output_dir: Directory where package will be created
             template: Template type (minimal, standard, full)
             license_type: License type
@@ -95,7 +100,6 @@ class JuliaPackageGenerator:
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
 
-
         # Determine plugins based on template type
         plugins = self._get_plugins(
             template,
@@ -114,7 +118,7 @@ class JuliaPackageGenerator:
 
         # Call Julia script to create package
         package_dir = self._call_julia_generator(
-            package_name, author, output_dir, plugins, julia_version
+            package_name, author, user, output_dir, plugins, julia_version
         )
 
         # Add mise configuration
@@ -213,6 +217,7 @@ class JuliaPackageGenerator:
         self,
         package_name: str,
         author: Optional[str],
+        user: Optional[str],
         output_dir: Path,
         plugins: Dict[str, Any],
         julia_version: Optional[str] = None,
@@ -232,6 +237,7 @@ class JuliaPackageGenerator:
             str(julia_script),
             package_name,
             author or "",
+            user or "",
             str(output_dir),
             plugins_str,
         ]
@@ -325,4 +331,3 @@ class JuliaPackageGenerator:
             dependencies["mise"] = False
 
         return dependencies
-
