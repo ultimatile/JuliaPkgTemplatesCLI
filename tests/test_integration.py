@@ -155,7 +155,8 @@ class TestEndToEndWorkflows:
         # Verify Julia was called with minimal plugins
         call_args = mock_subprocess.call_args[0][0]
         plugins_str = [arg for arg in call_args if arg.startswith("[")][0]
-        assert "License(" in plugins_str
+        # License plugin should not be present when no license is specified (delegates to PkgTemplates.jl default)
+        assert "License(" not in plugins_str
         assert "Git(" in plugins_str
         assert "GitHubActions()" not in plugins_str
         assert "Codecov()" not in plugins_str

@@ -151,7 +151,9 @@ def main():
             "EUPL",
         ]
     ),
-    help=get_help_with_default("License type", "license", "MIT"),
+    help=get_help_with_fallback(
+        "License type", "license", "uses PkgTemplates.jl default if not set"
+    ),
 )
 @click.option(
     "--with-docs/--no-docs",
@@ -251,7 +253,7 @@ def create(
         user = defaults.get("user") or None
 
     if license is None:
-        license = defaults.get("license") or "MIT"
+        license = defaults.get("license")
 
     if template is None:
         template = defaults.get("template") or "standard"
