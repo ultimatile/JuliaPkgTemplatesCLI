@@ -24,9 +24,19 @@ jobs:
         uses: astral-sh/setup-uv@v3
         with:
           version: "latest"
+          enable-cache: true
 
       - name: Set up Python ${{ matrix.python-version }}
         run: uv python install ${{ matrix.python-version }}
+
+      - name: Set up Julia
+        uses: julia-actions/setup-julia@v2
+        with:
+          version: '1.10'
+
+      - name: Install Julia packages
+        run: |
+          julia -e 'using Pkg; Pkg.add("PkgTemplates")'
 
       - name: Install dependencies
         run: |
@@ -34,11 +44,11 @@ jobs:
 
       - name: Run tests
         run: |
-          uv run pytest tests/ -v --cov=matplot_cli --cov-report=term-missing
+          uv run pytest -v
 
       - name: Run type check
         run: |
-          uv run python -m py_compile src/matplot_cli/*.py
+          uv run pyright src/juliapkgtemplates/
 
   release:
     needs: test
@@ -90,3 +100,4 @@ jobs:
       # - name: Publish package distributions to PyPI
       #   uses: pypa/gh-action-pypi-publish@release/v1
       #   if: steps.check_release.outputs.released == 'true'
+
