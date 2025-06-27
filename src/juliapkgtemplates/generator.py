@@ -71,7 +71,7 @@ class JuliaPackageGenerator:
         output_dir = Path(output_dir).resolve()
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
-        
+
         # Check if output directory is inside a Git repository
         is_in_git_repo = self._is_in_git_repository(output_dir)
         if is_in_git_repo and not force_in_git_repo:
@@ -129,16 +129,16 @@ class JuliaPackageGenerator:
     ) -> Dict[str, Any]:
         """Get PkgTemplates.jl plugins configuration"""
         base_plugins = []
-        
+
         # Add ProjectFile plugin with version if specified
         if project_version:
             base_plugins.append(f'ProjectFile(; version=v"{project_version}")')
         else:
             base_plugins.append('ProjectFile(; version=v"0.0.1")')
-        
+
         # Add License plugin
         base_plugins.append(f'License(; name="{license_type}")')
-        
+
         # Add Git plugin if not in a Git repository, or if force flag is used
         if not is_in_git_repo or force_in_git_repo:
             git_options = ["manifest=true"]
@@ -146,14 +146,16 @@ class JuliaPackageGenerator:
                 git_options.append("ssh=true")
             if ignore_patterns:
                 # Parse comma-separated patterns and format as Julia array
-                patterns = [f'"{p.strip()}"' for p in ignore_patterns.split(',') if p.strip()]
-                git_options.append(f'ignore=[{", ".join(patterns)}]')
-            git_plugin = f'Git(; {", ".join(git_options)})'
+                patterns = [
+                    f'"{p.strip()}"' for p in ignore_patterns.split(",") if p.strip()
+                ]
+                git_options.append(f"ignore=[{', '.join(patterns)}]")
+            git_plugin = f"Git(; {', '.join(git_options)})"
             base_plugins.append(git_plugin)
-        
+
         # Add Formatter plugin
         base_plugins.append(f'Formatter(; style="{formatter_style}")')
-        
+
         # Add Tests plugin with aqua and jet options
         test_options = []
         if tests_project:
@@ -163,7 +165,7 @@ class JuliaPackageGenerator:
         if tests_jet:
             test_options.append("jet=true")
         if test_options:
-            tests_plugin = f'Tests(; {", ".join(test_options)})'
+            tests_plugin = f"Tests(; {', '.join(test_options)})"
             base_plugins.append(tests_plugin)
 
         if template == "minimal":
@@ -201,7 +203,12 @@ class JuliaPackageGenerator:
         }
 
     def _call_julia_generator(
-        self, package_name: str, author: str, output_dir: Path, plugins: Dict[str, Any], julia_version: str = None
+        self,
+        package_name: str,
+        author: str,
+        output_dir: Path,
+        plugins: Dict[str, Any],
+        julia_version: str = None,
     ) -> Path:
         """Call Julia script to generate package"""
         julia_script = self.scripts_dir / "pkg_generator.jl"
@@ -221,14 +228,13 @@ class JuliaPackageGenerator:
             str(output_dir),
             plugins_str,
         ]
-        
+
         # Add Julia version if specified
         if julia_version:
             cmd.append(julia_version)
 
-
         try:
-            result = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            _ = subprocess.run(cmd, capture_output=True, text=True, check=True)
 
             # Parse output to get package directory
             package_dir = output_dir / package_name
@@ -241,9 +247,13 @@ class JuliaPackageGenerator:
             # Check if the error is actually a failure by looking for error indicators
             if "Error creating package:" in e.stdout or "Error:" in e.stdout:
                 # Extract the actual error message from Julia output
-                lines = e.stdout.strip().split('\n')
-                error_lines = [line for line in lines if line.startswith("Error:") or "Error creating package:" in line]
-                
+                lines = e.stdout.strip().split("\n")
+                error_lines = [
+                    line
+                    for line in lines
+                    if line.startswith("Error:") or "Error creating package:" in line
+                ]
+
                 if error_lines:
                     # Use the actual Julia error message without prefix
                     error_msg = error_lines[-1]  # Use the last error message
@@ -253,7 +263,7 @@ class JuliaPackageGenerator:
                         error_msg = error_msg.split("Error creating package: ", 1)[1]
                 else:
                     error_msg = f"Julia script failed: {e.stdout}"
-                
+
                 if "PkgTemplates" in e.stderr:
                     error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
                 raise RuntimeError(error_msg) from e
@@ -286,16 +296,14 @@ class JuliaPackageGenerator:
 
         # Check Julia
         try:
-            result = subprocess.run(
-                ["julia", "--version"], capture_output=True, check=True
-            )
+            _ = subprocess.run(["julia", "--version"], capture_output=True, check=True)
             dependencies["julia"] = True
         except (subprocess.CalledProcessError, FileNotFoundError):
             dependencies["julia"] = False
 
         # Check PkgTemplates.jl
         try:
-            result = subprocess.run(
+            _ = subprocess.run(
                 ["julia", "-e", "using PkgTemplates"], capture_output=True, check=True
             )
             dependencies["pkgtemplates"] = True
@@ -304,9 +312,7 @@ class JuliaPackageGenerator:
 
         # Check mise
         try:
-            result = subprocess.run(
-                ["mise", "--version"], capture_output=True, check=True
-            )
+            _ = subprocess.run(["mise", "--version"], capture_output=True, check=True)
             dependencies["mise"] = True
         except (subprocess.CalledProcessError, FileNotFoundError):
             dependencies["mise"] = False
@@ -317,11 +323,11 @@ class JuliaPackageGenerator:
     def _is_in_git_repository(path: Path) -> bool:
         """Check if the given path is inside a Git repository"""
         current_path = path.resolve()
-        
+
         # Walk up the directory tree looking for .git directory
         while current_path != current_path.parent:
             if (current_path / ".git").exists():
                 return True
             current_path = current_path.parent
-        
+
         return False
