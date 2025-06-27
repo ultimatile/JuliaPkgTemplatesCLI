@@ -2,6 +2,7 @@
 Julia package generator using PkgTemplates.jl and Jinja2
 """
 
+import logging
 import subprocess
 from pathlib import Path
 from typing import Dict, Any, Optional
@@ -47,7 +48,7 @@ class JuliaPackageGenerator:
             and license_name not in self.LICENSE_MAPPING.values()
         ):
             # If no mapping found and it's not a valid PkgTemplates.jl license, warn
-            print(f"Warning: Unknown license '{license_name}', using as-is")
+            logging.warning(f"Unknown license '{license_name}', using as-is")
         return mapped_license
 
     def create_package(
