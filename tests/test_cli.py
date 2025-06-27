@@ -35,7 +35,7 @@ class TestConfigFunctions:
     def test_load_config_existing_file(self, temp_config_dir):
         """Test loading existing config file"""
         config_content = b'[default]\nauthor = "Test Author"\nlicense = "MIT"\n'
-        config_file = temp_config_dir / "jtc.toml"
+        config_file = temp_config_dir / "config.toml"
         config_file.write_bytes(config_content)
 
         with patch("juliapkgtemplates.cli.get_config_path", return_value=config_file):
@@ -64,7 +64,7 @@ class TestConfigFunctions:
 
     def test_save_config_with_tomli_w(self, temp_config_dir):
         """Test saving config with tomli_w"""
-        config_file = temp_config_dir / "jtc.toml"
+        config_file = temp_config_dir / "config.toml"
         test_config = {"default": {"author": "Test Author", "license": "MIT"}}
 
         with patch("juliapkgtemplates.cli.get_config_path", return_value=config_file):
@@ -78,7 +78,7 @@ class TestConfigFunctions:
 
     def test_save_config_fallback(self, temp_config_dir):
         """Test saving config with fallback method"""
-        config_file = temp_config_dir / "jtc.toml"
+        config_file = temp_config_dir / "config.toml"
         test_config = {"default": {"author": "Test Author", "license": "MIT"}}
 
         with patch("juliapkgtemplates.cli.get_config_path", return_value=config_file):

@@ -45,7 +45,7 @@ def load_config() -> dict:
 
 
 def save_config(config: dict) -> None:
-    """Save configuration to jtc.toml"""
+    """Save configuration to config.toml"""
     config_path = get_config_path()
     try:
         import tomli_w
