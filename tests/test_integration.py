@@ -82,13 +82,13 @@ class TestEndToEndWorkflows:
             config_result = runner.invoke(main, [
                 'config',
                 '--author', 'Configured Author',
-                '--license', 'Apache2',
+                '--license', 'Apache',
                 '--template', 'full'
             ])
             
             assert config_result.exit_code == 0
             assert "Set default author: Configured Author" in config_result.output
-            assert "Set default license: Apache2" in config_result.output
+            assert "Set default license: Apache" in config_result.output
             assert "Set default template: full" in config_result.output
             
             # Then create package using defaults

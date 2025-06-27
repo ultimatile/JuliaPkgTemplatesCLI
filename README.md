@@ -60,7 +60,7 @@ jtc create MyPackage
 jtc create MyPackage --author "Your Name" --output-dir ~/projects
 
 # Create a package with specific template and license
-jtc create MyPackage --template full --license Apache2
+jtc create MyPackage --template full --license Apache
 
 # Create a package without documentation or CI
 jtc create MyPackage --no-docs --no-ci
@@ -89,7 +89,7 @@ jtc supports user-configurable defaults to streamline package creation. Configur
 jtc config --author "Your Name"
 
 # Set default license
-jtc config --license Apache2
+jtc config --license Apache
 
 # Set default template type
 jtc config --template full
@@ -124,7 +124,7 @@ For example, if you have `author = "Config Author"` in your config file but run 
 ### Available Options
 
 - **author**: Default author name for packages
-- **license**: Default license type (`MIT`, `Apache2`, `BSD3`, `GPL3`, `MPL`)
+- **license**: Default license type (`MIT`, `Apache`, `BSD2`, `BSD3`, `GPL2`, `GPL3`, `MPL`, `ISC`, `LGPL2`, `LGPL3`, `AGPL3`, `EUPL`)
 - **template**: Default template type (`minimal`, `standard`, `full`)
 - **formatter_style**: Default JuliaFormatter style (`nostyle`, `sciml`, `blue`, `yas`)
 

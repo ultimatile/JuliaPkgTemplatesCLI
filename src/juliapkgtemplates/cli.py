@@ -109,7 +109,7 @@ def main():
 )
 @click.option(
     "--license",
-    type=click.Choice(["MIT", "Apache2", "BSD3", "GPL3", "MPL"]),
+    type=click.Choice(["MIT", "Apache", "BSD2", "BSD3", "GPL2", "GPL3", "MPL", "ISC", "LGPL2", "LGPL3", "AGPL3", "EUPL"]),
     help=get_help_with_default("License type", "license", "MIT"),
 )
 @click.option(
@@ -285,7 +285,7 @@ def create(
 @click.option("--author", "-a", help="Default author name")
 @click.option(
     "--license",
-    type=click.Choice(["MIT", "Apache2", "BSD3", "GPL3", "MPL"]),
+    type=click.Choice(["MIT", "Apache", "BSD2", "BSD3", "GPL2", "GPL3", "MPL", "ISC", "LGPL2", "LGPL3", "AGPL3", "EUPL"]),
     help="Default license type",
 )
 @click.option(

@@ -12,6 +12,22 @@ from jinja2 import Environment, FileSystemLoader
 class JuliaPackageGenerator:
     """Julia package generator with PkgTemplates.jl and mise integration"""
 
+    # Map user-friendly license names to PkgTemplates.jl license identifiers
+    LICENSE_MAPPING = {
+        "MIT": "MIT",
+        "Apache": "ASL",
+        "BSD2": "BSD2", 
+        "BSD3": "BSD3",
+        "GPL2": "GPL-2.0+",
+        "GPL3": "GPL-3.0+",
+        "MPL": "MPL",
+        "ISC": "ISC",
+        "LGPL2": "LGPL-2.1+",
+        "LGPL3": "LGPL-3.0+",
+        "AGPL3": "AGPL-3.0+",
+        "EUPL": "EUPL-1.2+"
+    }
+
     def __init__(self):
         self.templates_dir = Path(__file__).parent / "templates"
         self.scripts_dir = Path(__file__).parent / "scripts"
@@ -22,6 +38,14 @@ class JuliaPackageGenerator:
             trim_blocks=True,
             lstrip_blocks=True,
         )
+
+    def _map_license(self, license_name: str) -> str:
+        """Map user-friendly license name to PkgTemplates.jl identifier"""
+        mapped_license = self.LICENSE_MAPPING.get(license_name, license_name)
+        if mapped_license == license_name and license_name not in self.LICENSE_MAPPING.values():
+            # If no mapping found and it's not a valid PkgTemplates.jl license, warn
+            print(f"Warning: Unknown license '{license_name}', using as-is")
+        return mapped_license
 
     def create_package(
         self,
@@ -134,8 +158,9 @@ class JuliaPackageGenerator:
         version = project_version or "0.0.1"
         base_plugins.append(f'ProjectFile(; version=v"{version}")')
 
-        # Add License plugin
-        base_plugins.append(f'License(; name="{license_type}")')
+        # Add License plugin (map user-friendly name to PkgTemplates.jl identifier)
+        mapped_license = self._map_license(license_type)
+        base_plugins.append(f'License(; name="{mapped_license}")')
 
         # Add Git plugin if not in a Git repository, or if force flag is used
         if not is_in_git_repo or force_in_git_repo:
