@@ -20,12 +20,13 @@ def get_config_path() -> Path:
     else:
         config_dir = Path.home() / ".config"
 
-    config_dir.mkdir(parents=True, exist_ok=True)
-    return config_dir / "jtc.toml"
+    app_config_dir = config_dir / "jtc"
+    app_config_dir.mkdir(parents=True, exist_ok=True)
+    return app_config_dir / "config.toml"
 
 
 def load_config() -> dict:
-    """Load configuration from jtc.toml"""
+    """Load configuration from config.toml"""
     config_path = get_config_path()
     config = {}
 

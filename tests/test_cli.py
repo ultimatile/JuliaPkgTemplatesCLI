@@ -26,14 +26,15 @@ class TestConfigFunctions:
         """Test config path with XDG_CONFIG_HOME set"""
         with patch.dict(os.environ, {'XDG_CONFIG_HOME': str(temp_config_dir)}):
             config_path = get_config_path()
-            assert config_path == temp_config_dir / "jtc.toml"
+            assert config_path == temp_config_dir / "jtc" / "config.toml"
     
     def test_get_config_path_without_xdg_config_home(self):
         """Test config path without XDG_CONFIG_HOME"""
         with patch.dict(os.environ, {}, clear=True):
             config_path = get_config_path()
-            assert config_path == Path.home() / ".config" / "jtc.toml"
-    
+            expected = Path.home() / ".config" / "jtc" / "config.toml"
+            assert config_path == expected
+
     def test_load_config_existing_file(self, temp_config_dir):
         """Test loading existing config file"""
         config_content = b'[default]\nauthor = "Test Author"\nlicense = "MIT"\n'
