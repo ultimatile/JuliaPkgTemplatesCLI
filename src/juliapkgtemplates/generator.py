@@ -26,7 +26,7 @@ class JuliaPackageGenerator:
     def create_package(
         self,
         package_name: str,
-        author: str,
+        author: Optional[str],
         output_dir: Path,
         template: str = "standard",
         license_type: str = "MIT",
@@ -203,7 +203,7 @@ class JuliaPackageGenerator:
     def _call_julia_generator(
         self,
         package_name: str,
-        author: str,
+        author: Optional[str],
         output_dir: Path,
         plugins: Dict[str, Any],
         julia_version: Optional[str] = None,
@@ -222,7 +222,7 @@ class JuliaPackageGenerator:
             "julia",
             str(julia_script),
             package_name,
-            author,
+            author or "",
             str(output_dir),
             plugins_str,
         ]
