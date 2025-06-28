@@ -213,7 +213,7 @@ class TestJuliaPackageGenerator:
             julia_script.touch()
 
             result = generator._call_julia_generator(
-                package_name, author, "testuser", temp_dir, plugins
+                package_name, author, "testuser", "test@example.com", temp_dir, plugins
             )
 
             assert result == package_dir
@@ -234,7 +234,12 @@ class TestJuliaPackageGenerator:
         with patch.object(generator, "scripts_dir", temp_dir):
             with pytest.raises(FileNotFoundError, match="Julia script not found"):
                 generator._call_julia_generator(
-                    "TestPackage", "Author", "testuser", temp_dir, {"plugins": []}
+                    "TestPackage",
+                    "Author",
+                    "testuser",
+                    "author@example.com",
+                    temp_dir,
+                    {"plugins": []},
                 )
 
     @patch("subprocess.run")
@@ -250,7 +255,12 @@ class TestJuliaPackageGenerator:
 
             with pytest.raises(RuntimeError, match="Julia not found"):
                 generator._call_julia_generator(
-                    "TestPackage", "Author", "testuser", temp_dir, {"plugins": []}
+                    "TestPackage",
+                    "Author",
+                    "testuser",
+                    "author@example.com",
+                    temp_dir,
+                    {"plugins": []},
                 )
 
     @patch("subprocess.run")
@@ -276,7 +286,12 @@ class TestJuliaPackageGenerator:
             julia_script.touch()
 
             result = generator._call_julia_generator(
-                package_name, "Author", "testuser", temp_dir, {"plugins": []}
+                package_name,
+                "Author",
+                "testuser",
+                "author@example.com",
+                temp_dir,
+                {"plugins": []},
             )
 
             assert result == package_dir
@@ -297,7 +312,12 @@ class TestJuliaPackageGenerator:
 
             with pytest.raises(RuntimeError, match="PkgTemplates error"):
                 generator._call_julia_generator(
-                    "TestPackage", "Author", "testuser", temp_dir, {"plugins": []}
+                    "TestPackage",
+                    "Author",
+                    "testuser",
+                    "author@example.com",
+                    temp_dir,
+                    {"plugins": []},
                 )
 
     def test_add_mise_config(self, temp_dir):
@@ -392,6 +412,7 @@ class TestJuliaPackageGenerator:
             package_name=package_name,
             author=author,
             user="testuser",
+            mail="test@example.com",
             output_dir=temp_dir,
             template="standard",
             license_type="MIT",
@@ -409,10 +430,11 @@ class TestJuliaPackageGenerator:
         assert call_args[0][0] == package_name
         assert call_args[0][1] == author
         assert call_args[0][2] == "testuser"
-        assert call_args[0][3] == temp_dir.resolve()
+        assert call_args[0][3] == "test@example.com"
+        assert call_args[0][4] == temp_dir.resolve()
 
         # Verify plugins were configured correctly
-        plugins = call_args[0][4]
+        plugins = call_args[0][5]
         assert 'License(; name="MIT")' in plugins["plugins"]
         assert 'Formatter(; style="nostyle")' in plugins["plugins"]
         assert "GitHubActions()" in plugins["plugins"]
@@ -434,6 +456,7 @@ class TestJuliaPackageGenerator:
                     package_name="TestPackage",
                     author="Author",
                     user="testuser",
+                    mail="author@example.com",
                     output_dir=nonexistent_dir,
                     formatter_style="nostyle",
                 )
@@ -471,5 +494,10 @@ class TestJuliaPackageGenerator:
 
                 with pytest.raises(RuntimeError, match="is not a valid package name"):
                     generator._call_julia_generator(
-                        invalid_name, "Author", "testuser", temp_dir, {"plugins": []}
+                        invalid_name,
+                        "Author",
+                        "testuser",
+                        "author@example.com",
+                        temp_dir,
+                        {"plugins": []},
                     )

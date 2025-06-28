@@ -110,6 +110,8 @@ class TestCreateCommand:
                     "Test Author",
                     "--user",
                     "testuser",
+                    "--mail",
+                    "test@example.com",
                     "--output-dir",
                     str(temp_dir),
                 ],
@@ -123,7 +125,16 @@ class TestCreateCommand:
     def test_create_invalid_package_name_non_alpha_start(self, cli_runner):
         """Test create command with invalid package name (doesn't start with letter)"""
         result = cli_runner.invoke(
-            create, ["123InvalidName", "--author", "Test Author", "--user", "testuser"]
+            create,
+            [
+                "123InvalidName",
+                "--author",
+                "Test Author",
+                "--user",
+                "testuser",
+                "--mail",
+                "test@example.com",
+            ],
         )
 
         assert result.exit_code == 1
@@ -132,7 +143,16 @@ class TestCreateCommand:
     def test_create_invalid_package_name_special_chars(self, cli_runner):
         """Test create command with invalid package name (special characters)"""
         result = cli_runner.invoke(
-            create, ["Invalid@Name", "--author", "Test Author", "--user", "testuser"]
+            create,
+            [
+                "Invalid@Name",
+                "--author",
+                "Test Author",
+                "--user",
+                "testuser",
+                "--mail",
+                "test@example.com",
+            ],
         )
 
         assert result.exit_code == 1
@@ -148,6 +168,7 @@ class TestCreateCommand:
                 "default": {
                     "author": "Config Author",
                     "user": "configuser",
+                    "mail": "config@example.com",
                     "license": "Apache",
                     "template": "full",
                 }
@@ -164,12 +185,14 @@ class TestCreateCommand:
 
                 assert result.exit_code == 0
                 assert "Author: Config Author" in result.output
+                assert "Mail: config@example.com" in result.output
                 mock_instance.create_package.assert_called_once()
 
                 # Check that config values were used
                 call_args = mock_instance.create_package.call_args
                 assert call_args[1]["author"] == "Config Author"
                 assert call_args[1]["user"] == "configuser"
+                assert call_args[1]["mail"] == "config@example.com"
                 assert call_args[1]["license_type"] == "Apache"
                 assert call_args[1]["template"] == "full"
 
@@ -187,11 +210,13 @@ class TestCreateCommand:
 
                 assert result.exit_code == 0
                 assert "Author: None" in result.output
-                # Verify that create_package was called with author=None and user=None, letting PkgTemplates.jl handle it
+                assert "Mail: None" in result.output
+                # Verify that create_package was called with author=None, user=None, and mail=None, letting PkgTemplates.jl handle it
                 mock_instance.create_package.assert_called_once()
                 call_args = mock_instance.create_package.call_args
                 assert call_args.kwargs["author"] is None
                 assert call_args.kwargs["user"] is None
+                assert call_args.kwargs["mail"] is None
 
     def test_create_generator_error(self, cli_runner, temp_dir):
         """Test create command handles generator errors"""
@@ -208,6 +233,8 @@ class TestCreateCommand:
                     "Test Author",
                     "--user",
                     "testuser",
+                    "--mail",
+                    "test@example.com",
                     "--output-dir",
                     str(temp_dir),
                 ],
@@ -238,6 +265,15 @@ class TestConfigCommand:
             assert "Set default user: newuser" in result.output
             assert "Configuration saved" in result.output
 
+    def test_config_set_mail(self, cli_runner, isolated_config):
+        """Test config command sets mail"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(config_cmd, ["--mail", "new@example.com"])
+
+            assert result.exit_code == 0
+            assert "Set default mail: new@example.com" in result.output
+            assert "Configuration saved" in result.output
+
     def test_config_set_multiple_options(self, cli_runner, isolated_config):
         """Test config command sets multiple options"""
         with patch("juliapkgtemplates.cli.load_config", return_value={}):
@@ -248,6 +284,8 @@ class TestConfigCommand:
                     "New Author",
                     "--user",
                     "newuser",
+                    "--mail",
+                    "new@example.com",
                     "--license",
                     "Apache",
                     "--template",
@@ -258,13 +296,19 @@ class TestConfigCommand:
             assert result.exit_code == 0
             assert "Set default author: New Author" in result.output
             assert "Set default user: newuser" in result.output
+            assert "Set default mail: new@example.com" in result.output
             assert "Set default license: Apache" in result.output
             assert "Set default template: full" in result.output
 
     def test_config_update_existing_config(self, cli_runner, isolated_config):
         """Test config command updates existing configuration"""
         existing_config = {
-            "default": {"author": "Old Author", "user": "olduser", "license": "MIT"}
+            "default": {
+                "author": "Old Author",
+                "user": "olduser",
+                "mail": "old@example.com",
+                "license": "MIT",
+            }
         }
 
         with patch("juliapkgtemplates.cli.load_config", return_value=existing_config):
@@ -276,6 +320,7 @@ class TestConfigCommand:
                 saved_config = mock_save.call_args[0][0]
                 assert saved_config["default"]["author"] == "Updated Author"
                 assert saved_config["default"]["user"] == "olduser"  # preserved
+                assert saved_config["default"]["mail"] == "old@example.com"  # preserved
                 assert saved_config["default"]["license"] == "MIT"  # preserved
 
 
