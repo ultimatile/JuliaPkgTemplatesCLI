@@ -187,11 +187,12 @@ class TestCreateCommand:
 
                 assert result.exit_code == 0
                 assert "Author: None" in result.output
-                # Verify that create_package was called with author=None and user=None, letting PkgTemplates.jl handle it
+                # Verify that create_package was called with author=None, user=None, and mail=None, letting PkgTemplates.jl handle it
                 mock_instance.create_package.assert_called_once()
                 call_args = mock_instance.create_package.call_args
                 assert call_args.kwargs["author"] is None
                 assert call_args.kwargs["user"] is None
+                assert call_args.kwargs["mail"] is None
 
     def test_create_generator_error(self, cli_runner, temp_dir):
         """Test create command handles generator errors"""

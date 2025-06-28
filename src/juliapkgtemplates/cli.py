@@ -109,6 +109,15 @@ def get_user_help() -> str:
     )
 
 
+def get_mail_help() -> str:
+    """Generate help text for mail option with config or PkgTemplates.jl fallback"""
+    return get_help_with_fallback(
+        "Email address for package metadata",
+        "mail",
+        "uses git config user.email if not set",
+    )
+
+
 @click.group()
 @click.version_option(package_name="JuliaPkgTemplatesCLI")
 def main():
@@ -120,6 +129,7 @@ def main():
 @click.argument("package_name")
 @click.option("--author", "-a", help=get_author_help())
 @click.option("--user", "-u", help=get_user_help())
+@click.option("--mail", "-m", help=get_mail_help())
 @click.option(
     "--output-dir",
     "-o",
@@ -213,6 +223,7 @@ def create(
     package_name: str,
     author: Optional[str],
     user: Optional[str],
+    mail: Optional[str],
     output_dir: str,
     template: Optional[str],
     license: Optional[str],
@@ -252,6 +263,10 @@ def create(
     if not user:
         user = defaults.get("user") or None
 
+    # Get mail from config if not provided (let PkgTemplates.jl handle git config fallback)
+    if not mail:
+        mail = defaults.get("mail") or None
+
     if license is None:
         license = defaults.get("license")
 
@@ -285,6 +300,7 @@ def create(
     click.echo(f"Creating Julia package: {package_name}")
     click.echo(f"Author: {author if author is not None else 'None'}")
     click.echo(f"User: {user if user is not None else 'None (will use git config)'}")
+    click.echo(f"Mail: {mail if mail is not None else 'None (will use git config)'}")
     click.echo(f"Template: {template}")
     click.echo(f"Output directory: {output_dir}")
 
@@ -294,6 +310,7 @@ def create(
             package_name=package_name,
             author=author,
             user=user,
+            mail=mail,
             output_dir=Path(output_dir),
             template=template,
             license_type=license,
@@ -325,6 +342,7 @@ def create(
 @main.command()
 @click.option("--author", "-a", help="Default author name")
 @click.option("--user", "-u", help="Default GitHub username")
+@click.option("--mail", "-m", help="Default email address")
 @click.option(
     "--license",
     type=click.Choice(
@@ -390,6 +408,7 @@ def create(
 def config(
     author: Optional[str],
     user: Optional[str],
+    mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
     formatter_style: Optional[str],
@@ -414,6 +433,10 @@ def config(
     if user:
         config["default"]["user"] = user
         click.echo(f"Set default user: {user}")
+
+    if mail:
+        config["default"]["mail"] = mail
+        click.echo(f"Set default mail: {mail}")
 
     if license:
         config["default"]["license"] = license

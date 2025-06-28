@@ -213,7 +213,7 @@ class TestJuliaPackageGenerator:
             julia_script.touch()
 
             result = generator._call_julia_generator(
-                package_name, author, "testuser", temp_dir, plugins
+                package_name, author, "testuser", "test@example.com", temp_dir, plugins
             )
 
             assert result == package_dir
