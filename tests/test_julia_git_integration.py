@@ -163,10 +163,10 @@ class TestJuliaGitIntegration:
 
     @pytest.mark.skipif(
         not get_git_config("user.name") or not get_git_config("user.email"),
-        reason="git config user.name and user.email must be set",
+        reason="git config user.name and user.email must be set for fallback testing",
     )
     def test_verify_fallback_values_match_expectations(self):
-        """Verify that the git config values match our expectations for testing"""
+        """Verify that the git config values are properly available for fallback behavior"""
         user_name = get_git_config("user.name")
         user_email = get_git_config("user.email")
         github_user = get_git_config("github.user")
@@ -177,16 +177,23 @@ class TestJuliaGitIntegration:
         print(f"  user.email: '{user_email}' (mail fallback)")
         print(f"  github.user: '{github_user}' (user fallback)")
 
-        # Verify we have the minimum required values
-        assert user_name == "ultimatile", (
-            f"Expected user.name to be 'ultimatile', got '{user_name}'"
+        # Verify we have the minimum required values (whatever they are in this environment)
+        assert user_name, f"user.name should be non-empty, got '{user_name}'"
+        assert user_email, f"user.email should be non-empty, got '{user_email}'"
+
+        # Verify the values are reasonable (basic format validation)
+        assert isinstance(user_name, str) and len(user_name.strip()) > 0, (
+            "user.name should be a non-empty string"
         )
-        assert user_email == "ultimatile@users.noreply.github.com", (
-            f"Expected specific email, got '{user_email}'"
+        assert isinstance(user_email, str) and "@" in user_email, (
+            f"user.email should be valid email format, got '{user_email}'"
         )
 
-        # github.user should now be set based on our earlier setup
+        # github.user is optional but if set, should be a reasonable value
         if github_user:
-            assert github_user == "ultimatile", (
-                f"Expected github.user to be 'ultimatile', got '{github_user}'"
+            assert isinstance(github_user, str) and len(github_user.strip()) > 0, (
+                f"github.user should be a non-empty string if set, got '{github_user}'"
             )
+            print(f"  Note: github.user is set to '{github_user}'")
+        else:
+            print("  Note: github.user is not configured (this is optional)")
