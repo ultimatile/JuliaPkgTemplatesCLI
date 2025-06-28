@@ -94,27 +94,27 @@ def get_help_with_fallback(
 def get_author_help() -> str:
     """Generate help text for author option with config fallback"""
     return get_help_with_fallback(
-        "Author name for the package",
+        "Author name for the package (corresponds to PkgTemplates.jl 'authors' parameter)",
         "author",
-        "uses PkgTemplates.jl default if not set",
+        "defaults to git config user.name if not set in config or CLI",
     )
 
 
 def get_user_help() -> str:
     """Generate help text for user option with config or PkgTemplates.jl fallback"""
     return get_help_with_fallback(
-        "Git hosting username for repository URLs and CI",
+        "Git hosting username for repository URLs and CI (corresponds to PkgTemplates.jl 'user' parameter)",
         "user",
-        "uses git config github.user if not set",
+        "defaults to git config github.user if not set in config or CLI",
     )
 
 
 def get_mail_help() -> str:
     """Generate help text for mail option with config or PkgTemplates.jl fallback"""
     return get_help_with_fallback(
-        "Email address for package metadata",
+        "Email address for package metadata (corresponds to PkgTemplates.jl 'mail' parameter)",
         "mail",
-        "uses git config user.email if not set",
+        "defaults to git config user.email if not set in config or CLI",
     )
 
 
