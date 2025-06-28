@@ -57,6 +57,7 @@ class JuliaPackageGenerator:
         package_name: str,
         author: Optional[str],
         user: Optional[str],
+        mail: Optional[str],
         output_dir: Path,
         template: str = "standard",
         license_type: Optional[str] = None,
@@ -79,6 +80,7 @@ class JuliaPackageGenerator:
             package_name: Name of the package
             author: Author name
             user: Git hosting username
+            mail: Email address
             output_dir: Directory where package will be created
             template: Template type (minimal, standard, full)
             license_type: License type
@@ -117,7 +119,7 @@ class JuliaPackageGenerator:
         )
 
         package_dir = self._call_julia_generator(
-            package_name, author, user, output_dir, plugins, julia_version
+            package_name, author, user, mail, output_dir, plugins, julia_version
         )
 
         self._add_mise_config(package_dir, package_name)
@@ -210,6 +212,7 @@ class JuliaPackageGenerator:
         package_name: str,
         author: Optional[str],
         user: Optional[str],
+        mail: Optional[str],
         output_dir: Path,
         plugins: Dict[str, Any],
         julia_version: Optional[str] = None,
@@ -228,6 +231,7 @@ class JuliaPackageGenerator:
             package_name,
             author or "",
             user or "",
+            mail or "",
             str(output_dir),
             plugins_str,
         ]

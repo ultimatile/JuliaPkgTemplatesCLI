@@ -135,7 +135,7 @@ function parse_plugins(plugins_str::String)
   return plugins
 end
 
-function generate_package(package_name::String, author::String, user::String, output_dir::String, plugins_str::String, julia_version::Union{String, Nothing}=nothing)
+function generate_package(package_name::String, author::String, user::String, mail::String, output_dir::String, plugins_str::String, julia_version::Union{String, Nothing}=nothing)
   """Generate Julia package using PkgTemplates.jl"""
 
   plugins = parse_plugins(plugins_str)
@@ -161,6 +161,11 @@ function generate_package(package_name::String, author::String, user::String, ou
     template_args[:user] = user
   end
   
+  # Add mail parameter if provided (otherwise PkgTemplates.jl uses git config)
+  if !isempty(mail)
+    template_args[:mail] = mail
+  end
+  
   if julia_version !== nothing
     version_str = replace(julia_version, "v" => "")
     template_args[:julia] = VersionNumber(version_str)
@@ -184,21 +189,22 @@ function generate_package(package_name::String, author::String, user::String, ou
 end
 
 function main()
-  if length(ARGS) < 5
-    println("Usage: julia pkg_generator.jl <package_name> <author> <user> <output_dir> <plugins> [julia_version]")
-    println("Example: julia pkg_generator.jl MyPackage \"John Doe\" \"johndoe\" \"/path/to/output\" \"[License(; name=\\\"MIT\\\"), Git(; manifest=true)]\" \"v1.10.9\"")
+  if length(ARGS) < 6
+    println("Usage: julia pkg_generator.jl <package_name> <author> <user> <mail> <output_dir> <plugins> [julia_version]")
+    println("Example: julia pkg_generator.jl MyPackage \"John Doe\" \"johndoe\" \"john@example.com\" \"/path/to/output\" \"[License(; name=\\\"MIT\\\"), Git(; manifest=true)]\" \"v1.10.9\"")
     exit(1)
   end
 
   package_name = ARGS[1]
   author = ARGS[2]
   user = ARGS[3]
-  output_dir = ARGS[4]
-  plugins_str = ARGS[5]
-  julia_version = length(ARGS) >= 6 ? ARGS[6] : nothing
+  mail = ARGS[4]
+  output_dir = ARGS[5]
+  plugins_str = ARGS[6]
+  julia_version = length(ARGS) >= 7 ? ARGS[7] : nothing
 
   try
-    generate_package(package_name, author, user, output_dir, plugins_str, julia_version)
+    generate_package(package_name, author, user, mail, output_dir, plugins_str, julia_version)
   catch e
     println("Error: $e")
     exit(1)
