@@ -1,0 +1,67 @@
+name: Create RC Tag
+
+on:
+  pull_request:
+    types: [opened, ready_for_review]
+    branches:
+      - main
+  workflow_dispatch:
+    inputs:
+      pr_number:
+        description: 'PR number to create RC for'
+        required: true
+        type: string
+
+jobs:
+  create-rc:
+    runs-on: ubuntu-latest
+    if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
+    
+    permissions:
+      contents: write
+      pull-requests: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          ref: dev
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: |
+          uv sync --group dev
+
+      - name: Create RC release
+        id: rc_release
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Run semantic-release to create RC tag
+          uv run semantic-release version
+          
+          # Get the created RC tag
+          RC_TAG=$(git describe --tags --abbrev=0)
+          echo "rc_tag=$RC_TAG" >> $GITHUB_OUTPUT
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Comment on PR
+        if: steps.rc_release.outputs.rc_tag
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+          RC_TAG=${{ steps.rc_release.outputs.rc_tag }}
+          
+          gh pr comment $PR_NUMBER --body "🚀 RC version **$RC_TAG** has been created for this PR"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
