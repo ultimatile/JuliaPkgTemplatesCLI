@@ -105,6 +105,10 @@ class TestGitConfigFallback:
                 call_args = mock_instance.create_package.call_args
                 assert call_args.kwargs["mail"] is None
 
+    @pytest.mark.skipif(
+        not get_git_config("user.name") or not get_git_config("user.email"),
+        reason="git config user.name and user.email must be set for fallback testing",
+    )
     def test_git_config_values_available(self):
         """Test that expected git config values are available for testing"""
         user_name = get_git_config("user.name")
