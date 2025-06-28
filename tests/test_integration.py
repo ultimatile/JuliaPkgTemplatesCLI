@@ -119,7 +119,9 @@ class TestEndToEndWorkflows:
                 assert "Author: Configured Author" in create_result.output
 
     @patch("juliapkgtemplates.generator.subprocess.run")
-    def test_minimal_template_workflow(self, mock_subprocess, temp_dir):
+    def test_minimal_template_workflow(
+        self, mock_subprocess, temp_dir, isolated_config
+    ):
         """Test creating package with minimal template"""
         runner = CliRunner()
 
