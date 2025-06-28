@@ -180,3 +180,7 @@ uv run pyright
 # Install from source for testing
 uv tool install .
 ```
+
+## Release
+
+Create PR with title containing "chore(release)". GitHub Actions will automatically update the title to "chore(release): v{version}".

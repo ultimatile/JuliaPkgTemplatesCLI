@@ -1,0 +1,62 @@
+name: Update Release PR Title
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches:
+      - main
+
+jobs:
+  update-pr-title:
+    runs-on: ubuntu-latest
+    if: contains(github.event.pull_request.title, 'chore(release)')
+    
+    permissions:
+      pull-requests: write
+      contents: read
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          version: "latest"
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.11
+
+      - name: Install dependencies
+        run: |
+          uv sync --group dev
+
+      - name: Get next version
+        id: get_version
+        run: |
+          # Merge main into current branch to get proper diff
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git merge origin/main --no-commit --no-ff || true
+          
+          # Get next version
+          NEXT_VERSION=$(uv run semantic-release version --print 2>/dev/null || echo "")
+          
+          if [ -n "$NEXT_VERSION" ] && [ "$NEXT_VERSION" != "$(grep '^version = ' pyproject.toml | cut -d'"' -f2)" ]; then
+            echo "next_version=v$NEXT_VERSION" >> $GITHUB_OUTPUT
+            echo "should_update=true" >> $GITHUB_OUTPUT
+          else
+            echo "should_update=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Update PR title
+        if: steps.get_version.outputs.should_update == 'true'
+        run: |
+          NEW_TITLE="chore(release): ${{ steps.get_version.outputs.next_version }}"
+          
+          gh pr edit ${{ github.event.pull_request.number }} --title "$NEW_TITLE"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
