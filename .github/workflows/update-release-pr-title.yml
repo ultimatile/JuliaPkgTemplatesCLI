@@ -34,19 +34,20 @@ jobs:
         run: |
           uv sync --group dev
 
-      - name: Get next version
+      - name: Get next version from dev branch RC tags
         id: get_version
         run: |
-          # Merge main into current branch to get proper diff
+          # Get the latest RC version from dev branch
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          git merge origin/main --no-commit --no-ff || true
           
-          # Get next version
-          NEXT_VERSION=$(uv run semantic-release version --print 2>/dev/null || echo "")
+          # Get latest RC tag from dev branch
+          LATEST_RC_TAG=$(git tag -l "*-rc.*" --sort=-version:refname | head -1 || echo "")
           
-          if [ -n "$NEXT_VERSION" ] && [ "$NEXT_VERSION" != "$(grep '^version = ' pyproject.toml | cut -d'"' -f2)" ]; then
-            echo "next_version=v$NEXT_VERSION" >> $GITHUB_OUTPUT
+          if [ -n "$LATEST_RC_TAG" ]; then
+            # Extract base version (remove -rc.X suffix)
+            BASE_VERSION=$(echo "$LATEST_RC_TAG" | sed 's/v//' | sed 's/-rc\.[0-9]*$//')
+            echo "next_version=v$BASE_VERSION" >> $GITHUB_OUTPUT
             echo "should_update=true" >> $GITHUB_OUTPUT
           else
             echo "should_update=false" >> $GITHUB_OUTPUT
