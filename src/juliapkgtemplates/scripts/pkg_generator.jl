@@ -9,30 +9,137 @@ using Pkg
 
 println("Loading PkgTemplates.jl...")
 try
-    using PkgTemplates
-    println("PkgTemplates.jl loaded successfully")
+  using PkgTemplates
+  println("PkgTemplates.jl loaded successfully")
 catch e
-    println("Error loading PkgTemplates.jl: ", e)
-    rethrow(e)
+  println("Error loading PkgTemplates.jl: ", e)
+  rethrow(e)
 end
 
 try
-    using LibGit2: GitError
+  using LibGit2: GitError
 catch
-    GitError = Exception
+  GitError = Exception
 end
 
 
-function parse_plugins(plugins_str::String)
-  """Parse plugins string from Python and return Julia array"""
-  plugin_patterns = Dict(
-    r"GitHubActions\(\)" => () -> GitHubActions(),
-    r"Codecov\(\)" => () -> Codecov(),
-    r"Documenter\{GitHubActions\}\(\)" => () -> Documenter{GitHubActions}(),
-    r"Develop\(\)" => () -> Develop(),
-    r"TagBot\(\)" => () -> TagBot(),
-    r"CompatHelper\(\)" => () -> CompatHelper()
+# Plugin parsers registry - each plugin type has its own parser
+const PLUGIN_PARSERS = Dict{String,Function}()
+
+function register_plugin_parser(plugin_type::String, parser::Function)
+  PLUGIN_PARSERS[plugin_type] = parser
+end
+
+function parse_license_plugin(plugin_str::String)
+  license_match = match(r"License\(;\s*name=\"([^\"]+)\"\)", plugin_str)
+  if license_match !== nothing
+    license_name = license_match.captures[1]
+    return License(; name=license_name)
+  else
+    return License(; name="MIT")
+  end
+end
+
+function parse_formatter_plugin(plugin_str::String)
+  formatter_match = match(r"Formatter\(;\s*style=\"(\w+)\"\)", plugin_str)
+  if formatter_match !== nothing
+    style = formatter_match.captures[1]
+    return Formatter(; style=style)
+  else
+    return Formatter()
+  end
+end
+
+function parse_git_plugin(plugin_str::String)
+  git_params = Dict{Symbol,Any}()
+
+  if occursin("manifest=true", plugin_str)
+    git_params[:manifest] = true
+  end
+
+  if occursin("ssh=true", plugin_str)
+    git_params[:ssh] = true
+  end
+
+  ignore_match = match(r"ignore=\[([^\]]+)\]", plugin_str)
+  if ignore_match !== nothing
+    ignore_str = ignore_match.captures[1]
+    patterns = [strip(s, ['"', ' ']) for s in split(ignore_str, ',') if !isempty(strip(s))]
+    git_params[:ignore] = patterns
+  end
+
+  return Git(; git_params...)
+end
+
+function parse_tests_plugin(plugin_str::String)
+  test_params = Dict{Symbol,Any}()
+
+  if occursin("project=true", plugin_str)
+    test_params[:project] = true
+  end
+
+  if occursin("aqua=true", plugin_str)
+    test_params[:aqua] = true
+  end
+
+  if occursin("jet=true", plugin_str)
+    test_params[:jet] = true
+  end
+
+  return Tests(; test_params...)
+end
+
+function parse_projectfile_plugin(plugin_str::String)
+  version_match = match(r"ProjectFile\(;\s*version=v\"([^\"]+)\"\)", plugin_str)
+  if version_match !== nothing
+    version_str = version_match.captures[1]
+    return ProjectFile(; version=VersionNumber(version_str))
+  else
+    return ProjectFile()
+  end
+end
+
+
+function init_plugin_parsers()
+  parametric_plugins = Dict(
+    "License" => parse_license_plugin,
+    "Formatter" => parse_formatter_plugin,
+    "Git" => parse_git_plugin,
+    "Tests" => parse_tests_plugin,
+    "ProjectFile" => parse_projectfile_plugin
   )
+
+  parameterless_plugins = Dict(
+    "GitHubActions" => (plugin_str) -> GitHubActions(),
+    "Codecov" => (plugin_str) -> Codecov(),
+    "Documenter{GitHubActions}" => (plugin_str) -> Documenter{GitHubActions}(),
+    "Develop" => (plugin_str) -> Develop(),
+    "TagBot" => (plugin_str) -> TagBot(),
+    "CompatHelper" => (plugin_str) -> CompatHelper()
+  )
+
+  # Register parametric plugins
+  for (plugin_type, parser) in parametric_plugins
+    register_plugin_parser(plugin_type, parser)
+  end
+
+  # Register parameterless plugins
+  for (plugin_type, parser) in parameterless_plugins
+    register_plugin_parser(plugin_type, parser)
+  end
+end
+
+function find_plugin_type(plugin_str::String)
+  for plugin_type in keys(PLUGIN_PARSERS)
+    if occursin(plugin_type, plugin_str)
+      return plugin_type
+    end
+  end
+  return nothing
+end
+
+function parse_plugins(plugins_str::String)
+  init_plugin_parsers()
 
   plugins_str = strip(plugins_str, ['[', ']'])
   plugin_strs = split(plugins_str, ',')
@@ -44,90 +151,16 @@ function parse_plugins(plugins_str::String)
       continue
     end
 
-    if occursin("License", plugin_str)
-      license_match = match(r"License\(;\s*name=\"([^\"]+)\"\)", plugin_str)
-      if license_match !== nothing
-        license_name = license_match.captures[1]
-        push!(plugins, License(; name=license_name))
-      else
-        push!(plugins, License(; name="MIT"))
+    plugin_type = find_plugin_type(plugin_str)
+    if !isnothing(plugin_type)
+      parser = PLUGIN_PARSERS[plugin_type]
+      try
+        plugin = parser(plugin_str)
+        push!(plugins, plugin)
+      catch e
+        @warn "Error parsing plugin $plugin_str: $e"
       end
-      continue
-    end
-
-    if occursin("Formatter", plugin_str)
-      formatter_match = match(r"Formatter\(;\s*style=\"(\w+)\"\)", plugin_str)
-      if formatter_match !== nothing
-        style = formatter_match.captures[1]
-        push!(plugins, Formatter(; style=style))
-      else
-        push!(plugins, Formatter())
-      end
-      continue
-    end
-
-    if occursin("Git", plugin_str)
-      git_params = Dict{Symbol, Any}()
-      
-      if occursin("manifest=true", plugin_str)
-        git_params[:manifest] = true
-      end
-      
-      if occursin("ssh=true", plugin_str)
-        git_params[:ssh] = true
-      end
-      
-      ignore_match = match(r"ignore=\[([^\]]+)\]", plugin_str)
-      if ignore_match !== nothing
-        ignore_str = ignore_match.captures[1]
-        patterns = [strip(s, ['"', ' ']) for s in split(ignore_str, ',') if !isempty(strip(s))]
-        git_params[:ignore] = patterns
-      end
-      
-      push!(plugins, Git(; git_params...))
-      continue
-    end
-
-    if occursin("Tests", plugin_str)
-      test_params = Dict{Symbol, Any}()
-      
-      if occursin("project=true", plugin_str)
-        test_params[:project] = true
-      end
-      
-      if occursin("aqua=true", plugin_str)
-        test_params[:aqua] = true
-      end
-      
-      if occursin("jet=true", plugin_str)
-        test_params[:jet] = true
-      end
-      
-      push!(plugins, Tests(; test_params...))
-      continue
-    end
-
-    if occursin("ProjectFile", plugin_str)
-      version_match = match(r"ProjectFile\(;\s*version=v\"([^\"]+)\"\)", plugin_str)
-      if version_match !== nothing
-        version_str = version_match.captures[1]
-        push!(plugins, ProjectFile(; version=VersionNumber(version_str)))
-      else
-        push!(plugins, ProjectFile())
-      end
-      continue
-    end
-
-    matched = false
-    for (pattern, creator) in plugin_patterns
-      if occursin(pattern, plugin_str)
-        push!(plugins, creator())
-        matched = true
-        break
-      end
-    end
-
-    if !matched
+    else
       @warn "Unknown plugin: $plugin_str"
     end
   end
@@ -135,7 +168,7 @@ function parse_plugins(plugins_str::String)
   return plugins
 end
 
-function generate_package(package_name::String, author::String, user::String, mail::String, output_dir::String, plugins_str::String, julia_version::Union{String, Nothing}=nothing)
+function generate_package(package_name::String, author::String, user::String, mail::String, output_dir::String, plugins_str::String, julia_version::Union{String,Nothing}=nothing)
   """Generate Julia package using PkgTemplates.jl"""
 
   plugins = parse_plugins(plugins_str)
@@ -145,32 +178,32 @@ function generate_package(package_name::String, author::String, user::String, ma
   println("User: $user")
   println("Output directory: $output_dir")
   println("Plugins: $(length(plugins)) plugins configured")
-  if julia_version !== nothing
+  if !isnothing(julia_version)
     println("Julia version: $julia_version")
   end
 
   template_args = Dict(:dir => output_dir, :plugins => plugins)
-  
+
   # Add author parameter if provided
   if !isempty(author)
     template_args[:authors] = [author]
   end
-  
+
   # Add user parameter if provided (otherwise PkgTemplates.jl uses git config)
   if !isempty(user)
     template_args[:user] = user
   end
-  
+
   # Add mail parameter if provided (otherwise PkgTemplates.jl uses git config)
   if !isempty(mail)
     template_args[:mail] = mail
   end
-  
-  if julia_version !== nothing
+
+  if !isnothing(julia_version)
     version_str = replace(julia_version, "v" => "")
     template_args[:julia] = VersionNumber(version_str)
   end
-  
+
   template = Template(; template_args...)
 
   try
