@@ -48,6 +48,15 @@ build_command = "uv build"
 upload_to_pypi = false
 upload_to_release = true
 
+[[tool.semantic_release.branches]]
+name = "main"
+channel = "latest"
+
+[[tool.semantic_release.branches]]
+name = "dev"
+prerelease = "rc"
+channel = "next"
+
 [tool.semantic_release.commit_parser_options]
 minor_tags = ["feat"]
 patch_tags = ["fix", "perf", "refactor"]
