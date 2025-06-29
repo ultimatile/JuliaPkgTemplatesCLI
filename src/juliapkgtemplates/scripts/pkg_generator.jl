@@ -184,19 +184,19 @@ function generate_package(package_name::String, author::String, user::String, ma
 
   template_args = Dict(:dir => output_dir, :plugins => plugins)
 
-  # Add author parameter if provided
-  if !isempty(author)
+  # Handle author and mail combination
+  if !isempty(author) && !isempty(mail)
+    # When both author and mail are provided, combine them in "Name <email>" format
+    template_args[:authors] = ["$author <$mail>"]
+  elseif !isempty(author)
+    # Only author provided
     template_args[:authors] = [author]
   end
+  # If neither is provided, PkgTemplates.jl will use git config fallback
 
   # Add user parameter if provided (otherwise PkgTemplates.jl uses git config)
   if !isempty(user)
     template_args[:user] = user
-  end
-
-  # Add mail parameter if provided (otherwise PkgTemplates.jl uses git config)
-  if !isempty(mail)
-    template_args[:mail] = mail
   end
 
   if !isnothing(julia_version)
