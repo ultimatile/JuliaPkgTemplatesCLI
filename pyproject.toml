@@ -44,7 +44,7 @@ upload_to_release = true
 channel = "latest"
 
 [tool.semantic_release.branches.dev]
-prerelease = "rc"
+prerelease = true
 channel = "next"
 
 [tool.semantic_release.commit_parser_options]
