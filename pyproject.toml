@@ -40,12 +40,10 @@ build_command = "uv build"
 upload_to_pypi = false
 upload_to_release = true
 
-[[tool.semantic_release.branches]]
-name = "main"
+[tool.semantic_release.branches.main]
 channel = "latest"
 
-[[tool.semantic_release.branches]]
-name = "dev"
+[tool.semantic_release.branches.dev]
 prerelease = "rc"
 channel = "next"
 
