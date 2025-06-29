@@ -14,11 +14,7 @@ classifiers = [
   "Topic :: Software Development :: Code Generators",
 ]
 requires-python = ">=3.11"
-dependencies = [
-  "click>=8.0.0",
-  "jinja2>=3.0.0",
-  "tomli-w>=1.0.0",
-]
+dependencies = ["click>=8.0.0", "jinja2>=3.0.0", "tomli-w>=1.0.0"]
 
 [project.urls]
 Homepage = "https://github.com/ultimatile/JuliaPkgTemplatesCLI"
@@ -36,11 +32,7 @@ build-backend = "hatchling.build"
 packages = ["src/juliapkgtemplates"]
 
 [dependency-groups]
-dev = [
-    "pyright>=1.1.402",
-    "pytest>=8.3.5",
-    "python-semantic-release>=9.0.0",
-]
+dev = ["pyright>=1.1.402", "pytest>=8.3.5", "python-semantic-release>=9.0.0"]
 
 [tool.semantic_release]
 version_toml = ["pyproject.toml:project.version"]
@@ -48,12 +40,10 @@ build_command = "uv build"
 upload_to_pypi = false
 upload_to_release = true
 
-[[tool.semantic_release.branches]]
-name = "main"
+[tool.semantic_release.branches.main]
 channel = "latest"
 
-[[tool.semantic_release.branches]]
-name = "dev"
+[tool.semantic_release.branches.dev]
 prerelease = "rc"
 channel = "next"
 
@@ -62,11 +52,7 @@ minor_tags = ["feat"]
 patch_tags = ["fix", "perf", "refactor"]
 
 [tool.semantic_release.changelog]
+exclude_commit_patterns = ["chore:", "ci:", "test:", "docs:", "style:"]
+
+[tool.semantic_release.changelog.default_templates]
 changelog_file = "CHANGELOG.md"
-exclude_commit_patterns = [
-    "chore:",
-    "ci:",
-    "test:",
-    "docs:",
-    "style:",
-]
