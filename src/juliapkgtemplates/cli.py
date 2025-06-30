@@ -306,25 +306,28 @@ def create(
 
     try:
         generator = JuliaPackageGenerator()
+        config = {
+            "template": template,
+            "license_type": license,
+            "with_docs": with_docs,
+            "with_ci": with_ci,
+            "with_codecov": with_codecov,
+            "formatter_style": formatter_style,
+            "julia_version": julia_version,
+            "ssh": ssh,
+            "ignore_patterns": ignore_patterns,
+            "tests_aqua": tests_aqua,
+            "tests_jet": tests_jet,
+            "tests_project": tests_project,
+            "project_version": project_version,
+        }
         package_dir = generator.create_package(
             package_name=package_name,
             author=author,
             user=user,
             mail=mail,
             output_dir=Path(output_dir),
-            template=template,
-            license_type=license,
-            with_docs=with_docs,
-            with_ci=with_ci,
-            with_codecov=with_codecov,
-            formatter_style=formatter_style,
-            julia_version=julia_version,
-            ssh=ssh,
-            ignore_patterns=ignore_patterns,
-            tests_aqua=tests_aqua,
-            tests_jet=tests_jet,
-            tests_project=tests_project,
-            project_version=project_version,
+            config=config,
         )
 
         click.echo(f"\nPackage created successfully at: {package_dir}")

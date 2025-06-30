@@ -103,19 +103,7 @@ class JuliaPackageGenerator:
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
-        template: str = "standard",
-        license_type: Optional[str] = None,
-        with_docs: bool = True,
-        with_ci: bool = True,
-        with_codecov: bool = True,
-        formatter_style: str = "nostyle",
-        julia_version: Optional[str] = None,
-        ssh: bool = False,
-        ignore_patterns: Optional[str] = None,
-        tests_aqua: bool = False,
-        tests_jet: bool = False,
-        tests_project: bool = True,
-        project_version: Optional[str] = None,
+        config: Optional[Dict[str, Any]] = None,
     ) -> Path:
         """
         Create a new Julia package using PkgTemplates.jl
@@ -126,19 +114,20 @@ class JuliaPackageGenerator:
             user: Git hosting username
             mail: Email address
             output_dir: Directory where package will be created
-            template: Template type (minimal, standard, full)
-            license_type: License type
-            with_docs: Include documentation
-            with_ci: Include CI/CD
-            with_codecov: Include Codecov
-            formatter_style: JuliaFormatter style (nostyle, sciml, blue, yas)
-            julia_version: Julia version constraint for Template constructor
-            ssh: Use SSH for Git operations
-            ignore_patterns: Comma-separated list of patterns to ignore in Git
-            tests_aqua: Enable Aqua.jl in Tests plugin
-            tests_jet: Enable JET.jl in Tests plugin
-            tests_project: Enable separate project for tests
-            project_version: Initial version for ProjectFile plugin
+            config: Configuration dictionary with keys:
+                - template: Template type (minimal, standard, full)
+                - license_type: License type
+                - with_docs: Include documentation
+                - with_ci: Include CI/CD
+                - with_codecov: Include Codecov
+                - formatter_style: JuliaFormatter style (nostyle, sciml, blue, yas)
+                - julia_version: Julia version constraint for Template constructor
+                - ssh: Use SSH for Git operations
+                - ignore_patterns: Comma-separated list of patterns to ignore in Git
+                - tests_aqua: Enable Aqua.jl in Tests plugin
+                - tests_jet: Enable JET.jl in Tests plugin
+                - tests_project: Enable separate project for tests
+                - project_version: Initial version for ProjectFile plugin
 
         Returns:
             Path to the created package directory
@@ -147,23 +136,44 @@ class JuliaPackageGenerator:
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
 
+        # Set default configuration values
+        cfg = {
+            "template": "standard",
+            "license_type": None,
+            "with_docs": True,
+            "with_ci": True,
+            "with_codecov": True,
+            "formatter_style": "nostyle",
+            "julia_version": None,
+            "ssh": False,
+            "ignore_patterns": None,
+            "tests_aqua": False,
+            "tests_jet": False,
+            "tests_project": True,
+            "project_version": None,
+        }
+
+        # Override with provided config
+        if config:
+            cfg.update(config)
+
         plugins = self._get_plugins(
-            template,
-            license_type,
-            with_docs,
-            with_ci,
-            with_codecov,
-            formatter_style,
-            ssh,
-            ignore_patterns,
-            tests_aqua,
-            tests_jet,
-            tests_project,
-            project_version,
+            cfg["template"],
+            cfg["license_type"],
+            cfg["with_docs"],
+            cfg["with_ci"],
+            cfg["with_codecov"],
+            cfg["formatter_style"],
+            cfg["ssh"],
+            cfg["ignore_patterns"],
+            cfg["tests_aqua"],
+            cfg["tests_jet"],
+            cfg["tests_project"],
+            cfg["project_version"],
         )
 
         package_dir = self._call_julia_generator(
-            package_name, author, user, mail, output_dir, plugins, julia_version
+            package_name, author, user, mail, output_dir, plugins, cfg["julia_version"]
         )
 
         self._add_mise_config(package_dir, package_name)
