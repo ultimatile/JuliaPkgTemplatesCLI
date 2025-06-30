@@ -9,7 +9,7 @@ from typing import Optional
 
 import click
 
-from .generator import JuliaPackageGenerator
+from .generator import JuliaPackageGenerator, PackageConfig
 
 
 def get_config_path() -> Path:
@@ -306,12 +306,7 @@ def create(
 
     try:
         generator = JuliaPackageGenerator()
-        package_dir = generator.create_package(
-            package_name=package_name,
-            author=author,
-            user=user,
-            mail=mail,
-            output_dir=Path(output_dir),
+        config = PackageConfig(
             template=template,
             license_type=license,
             with_docs=with_docs,
@@ -325,6 +320,14 @@ def create(
             tests_jet=tests_jet,
             tests_project=tests_project,
             project_version=project_version,
+        )
+        package_dir = generator.create_package(
+            package_name=package_name,
+            author=author,
+            user=user,
+            mail=mail,
+            output_dir=Path(output_dir),
+            config=config,
         )
 
         click.echo(f"\nPackage created successfully at: {package_dir}")
