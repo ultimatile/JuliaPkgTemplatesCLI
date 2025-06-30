@@ -5,10 +5,22 @@ Julia package generator using PkgTemplates.jl and Jinja2
 import logging
 import re
 import subprocess
+from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, List
 
 from jinja2 import Environment, FileSystemLoader
+
+
+@dataclass(frozen=True)
+class TemplateConfig:
+    """Configuration for a package template"""
+
+    plugins: List[str]
+
+    def includes(self, plugin: str) -> bool:
+        """Check if template includes a specific plugin"""
+        return plugin in self.plugins
 
 
 class JuliaPackageGenerator:
@@ -28,6 +40,38 @@ class JuliaPackageGenerator:
         "LGPL3": "LGPL-3.0+",
         "AGPL3": "AGPL-3.0+",
         "EUPL": "EUPL-1.2+",
+    }
+
+    # Template configurations mapping template names to their plugin lists (order preserved)
+    TEMPLATE_CONFIGS = {
+        "minimal": TemplateConfig(
+            plugins=["ProjectFile", "License", "Git", "Formatter", "Tests"]
+        ),
+        "standard": TemplateConfig(
+            plugins=[
+                "ProjectFile",
+                "License",
+                "Git",
+                "Formatter",
+                "Tests",
+                "GitHubActions",
+                "Codecov",
+            ]
+        ),
+        "full": TemplateConfig(
+            plugins=[
+                "ProjectFile",
+                "License",
+                "Git",
+                "Formatter",
+                "Tests",
+                "GitHubActions",
+                "Codecov",
+                "Documenter",
+                "TagBot",
+                "CompatHelper",
+            ]
+        ),
     }
 
     def __init__(self):
@@ -141,63 +185,36 @@ class JuliaPackageGenerator:
         tests_project: bool,
         project_version: Optional[str],
     ) -> Dict[str, Any]:
-        """Get PkgTemplates.jl plugins configuration"""
-        base_plugins = []
+        """Get PkgTemplates.jl plugins configuration using template-based approach"""
+        if template not in self.TEMPLATE_CONFIGS:
+            raise ValueError(
+                f"Unknown template type: {template}. Available: {list(self.TEMPLATE_CONFIGS.keys())}"
+            )
 
-        version = project_version or "0.0.1"
-        base_plugins.append(f'ProjectFile(; version=v"{version}")')
+        config = self.TEMPLATE_CONFIGS[template]
+        plugins = []
 
-        if license_type:
-            mapped_license = self._map_license(license_type)
-            base_plugins.append(f'License(; name="{mapped_license}")')
+        # Build plugins based on template configuration and user preferences
+        plugin_builders = {
+            "ProjectFile": lambda: self._build_project_file_plugin(project_version),
+            "License": lambda: self._build_license_plugin(license_type),
+            "Git": lambda: self._build_git_plugin(ssh, ignore_patterns),
+            "Formatter": lambda: self._build_formatter_plugin(formatter_style),
+            "Tests": lambda: self._build_tests_plugin(
+                tests_aqua, tests_jet, tests_project
+            ),
+            "GitHubActions": lambda: self._build_github_actions_plugin(with_ci),
+            "Codecov": lambda: self._build_codecov_plugin(with_codecov),
+            "Documenter": lambda: self._build_documenter_plugin(with_docs),
+            "TagBot": lambda: self._build_tagbot_plugin(),
+            "CompatHelper": lambda: self._build_compathelper_plugin(),
+        }
 
-        git_options = ["manifest=true"]
-        if ssh:
-            git_options.append("ssh=true")
-        if ignore_patterns:
-            patterns = [
-                f'"{p.strip()}"' for p in ignore_patterns.split(",") if p.strip()
-            ]
-            git_options.append(f"ignore=[{', '.join(patterns)}]")
-        git_plugin = f"Git(; {', '.join(git_options)})"
-        base_plugins.append(git_plugin)
-
-        base_plugins.append(f'Formatter(; style="{formatter_style}")')
-
-        test_options = []
-        if tests_project:
-            test_options.append("project=true")
-        if tests_aqua:
-            test_options.append("aqua=true")
-        if tests_jet:
-            test_options.append("jet=true")
-        if test_options:
-            tests_plugin = f"Tests(; {', '.join(test_options)})"
-            base_plugins.append(tests_plugin)
-
-        if template == "minimal":
-            plugins = base_plugins
-        elif template == "standard":
-            additional_plugins = []
-            if with_ci:
-                additional_plugins.append("GitHubActions()")
-            if with_codecov:
-                additional_plugins.append("Codecov()")
-            plugins = base_plugins + additional_plugins
-        elif template == "full":
-            additional_plugins = []
-            if with_ci:
-                additional_plugins.append("GitHubActions()")
-            if with_codecov:
-                additional_plugins.append("Codecov()")
-            if with_docs:
-                additional_plugins.append("Documenter{GitHubActions}()")
-            additional_plugins.extend(["TagBot()", "CompatHelper()"])
-            plugins = base_plugins + additional_plugins
-        else:
-            raise ValueError(f"Unknown template type: {template}")
-
-        plugins = [p for p in plugins if p is not None]
+        for plugin_name in config.plugins:
+            if plugin_name in plugin_builders:
+                plugin = plugin_builders[plugin_name]()
+                if plugin:  # Only add non-None plugins
+                    plugins.append(plugin)
 
         return {
             "plugins": plugins,
@@ -206,6 +223,69 @@ class JuliaPackageGenerator:
             "with_ci": with_ci,
             "with_codecov": with_codecov,
         }
+
+    def _build_project_file_plugin(self, project_version: Optional[str]) -> str:
+        """Build ProjectFile plugin configuration"""
+        version = project_version or "0.0.1"
+        return f'ProjectFile(; version=v"{version}")'
+
+    def _build_license_plugin(self, license_type: Optional[str]) -> Optional[str]:
+        """Build License plugin configuration"""
+        if not license_type:
+            return None
+        mapped_license = self._map_license(license_type)
+        return f'License(; name="{mapped_license}")'
+
+    def _build_git_plugin(self, ssh: bool, ignore_patterns: Optional[str]) -> str:
+        """Build Git plugin configuration"""
+        git_options = ["manifest=true"]
+        if ssh:
+            git_options.append("ssh=true")
+        if ignore_patterns:
+            patterns = [
+                f'"{p.strip()}"' for p in ignore_patterns.split(",") if p.strip()
+            ]
+            git_options.append(f"ignore=[{', '.join(patterns)}]")
+        return f"Git(; {', '.join(git_options)})"
+
+    def _build_formatter_plugin(self, formatter_style: str) -> str:
+        """Build Formatter plugin configuration"""
+        return f'Formatter(; style="{formatter_style}")'
+
+    def _build_tests_plugin(
+        self, tests_aqua: bool, tests_jet: bool, tests_project: bool
+    ) -> Optional[str]:
+        """Build Tests plugin configuration"""
+        test_options = []
+        if tests_project:
+            test_options.append("project=true")
+        if tests_aqua:
+            test_options.append("aqua=true")
+        if tests_jet:
+            test_options.append("jet=true")
+        if test_options:
+            return f"Tests(; {', '.join(test_options)})"
+        return None
+
+    def _build_github_actions_plugin(self, with_ci: bool) -> Optional[str]:
+        """Build GitHubActions plugin configuration"""
+        return "GitHubActions()" if with_ci else None
+
+    def _build_codecov_plugin(self, with_codecov: bool) -> Optional[str]:
+        """Build Codecov plugin configuration"""
+        return "Codecov()" if with_codecov else None
+
+    def _build_documenter_plugin(self, with_docs: bool) -> Optional[str]:
+        """Build Documenter plugin configuration"""
+        return "Documenter{GitHubActions}()" if with_docs else None
+
+    def _build_tagbot_plugin(self) -> str:
+        """Build TagBot plugin configuration"""
+        return "TagBot()"
+
+    def _build_compathelper_plugin(self) -> str:
+        """Build CompatHelper plugin configuration"""
+        return "CompatHelper()"
 
     def _call_julia_generator(
         self,
