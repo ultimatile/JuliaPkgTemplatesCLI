@@ -1,6 +1,14 @@
 # CHANGELOG
 
 
+## v0.1.0-rc.2 (2025-06-30)
+
+### Bug Fixes
+
+- **ci**: Make bump workflow work
+  ([`b706b53`](https://github.com/ultimatile/JuliaPkgTemplatesCLI/commit/b706b53f3066e2beb6c81d1a9e62ed030a115255))
+
+
 ## v0.1.0-rc.1 (2025-06-30)
 
 ### Bug Fixes
