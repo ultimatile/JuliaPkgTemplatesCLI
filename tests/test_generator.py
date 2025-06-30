@@ -414,12 +414,14 @@ class TestJuliaPackageGenerator:
             user="testuser",
             mail="test@example.com",
             output_dir=temp_dir,
-            template="standard",
-            license_type="MIT",
-            with_docs=True,
-            with_ci=True,
-            with_codecov=True,
-            formatter_style="nostyle",
+            config={
+                "template": "standard",
+                "license_type": "MIT",
+                "with_docs": True,
+                "with_ci": True,
+                "with_codecov": True,
+                "formatter_style": "nostyle",
+            },
         )
 
         assert result == package_dir
@@ -458,7 +460,7 @@ class TestJuliaPackageGenerator:
                     user="testuser",
                     mail="author@example.com",
                     output_dir=nonexistent_dir,
-                    formatter_style="nostyle",
+                    config={"formatter_style": "nostyle"},
                 )
 
                 assert nonexistent_dir.exists()

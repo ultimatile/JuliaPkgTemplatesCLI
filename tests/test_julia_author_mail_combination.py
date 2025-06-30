@@ -65,7 +65,7 @@ class TestJuliaAuthorMailCombination:
                     user="johndoe",
                     mail="john@example.com",
                     output_dir=temp_path,
-                    template="minimal",
+                    config={"template": "minimal"},
                 )
 
                 assert result_dir.exists()
@@ -106,7 +106,7 @@ class TestJuliaAuthorMailCombination:
                     user=None,
                     mail=None,
                     output_dir=temp_path,
-                    template="minimal",
+                    config={"template": "minimal"},
                 )
 
                 assert result_dir.exists()
@@ -147,7 +147,7 @@ class TestJuliaAuthorMailCombination:
                     user=None,
                     mail="john@example.com",
                     output_dir=temp_path,
-                    template="minimal",
+                    config={"template": "minimal"},
                 )
 
                 assert result_dir.exists()
@@ -188,7 +188,7 @@ class TestJuliaAuthorMailCombination:
                     user=None,
                     mail=None,
                     output_dir=temp_path,
-                    template="minimal",
+                    config={"template": "minimal"},
                 )
 
                 assert result_dir.exists()
