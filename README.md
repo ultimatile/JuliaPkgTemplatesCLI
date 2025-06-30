@@ -183,4 +183,4 @@ uv tool install .
 
 ## Release
 
-Create PR with title containing "chore(release)". GitHub Actions will automatically update the title to "chore(release): v{version}".
+Create PR with title containing "release". GitHub Actions will automatically update the title to "release: v{version}".
