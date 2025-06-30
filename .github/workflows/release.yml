@@ -90,6 +90,47 @@ jobs:
         run: |
           uv sync --group dev
 
+      - name: Sync RC tags from dev branch
+        id: sync_tags
+        continue-on-error: true
+        timeout-minutes: 5
+        run: |
+          # Fetch dev branch information
+          git fetch origin dev
+          
+          # Get the latest RC tag
+          LATEST_RC_TAG=$(git tag -l "*-rc.*" --sort=-version:refname | head -1 || echo "")
+          
+          if [ -n "$LATEST_RC_TAG" ]; then
+            echo "Found RC tag: $LATEST_RC_TAG"
+            
+            # Get the commit hash that the RC tag points to
+            RC_COMMIT=$(git rev-list -n 1 $LATEST_RC_TAG)
+            
+            # Check if that commit is in the main branch history
+            if git merge-base --is-ancestor $RC_COMMIT HEAD; then
+              echo "RC commit is in main branch history, syncing tag..."
+              # Create the tag locally
+              git tag $LATEST_RC_TAG $RC_COMMIT || true
+              echo "synced=true" >> $GITHUB_OUTPUT
+              echo "rc_tag=$LATEST_RC_TAG" >> $GITHUB_OUTPUT
+            else
+              echo "RC commit not in main branch history, skipping..."
+              echo "synced=false" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "No RC tags found"
+            echo "synced=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Verify semantic-release will see RC tags
+        run: |
+          echo "Available tags for semantic-release:"
+          git tag -l --sort=-version:refname | head -10
+          
+          echo "Latest RC tag:"
+          git tag -l "*-rc.*" --sort=-version:refname | head -1 || echo "None"
+
       - name: Python Semantic Release
         id: release
         run: |
