@@ -90,47 +90,72 @@ jobs:
         run: |
           uv sync --group dev
 
-      - name: Sync RC tags from dev branch
-        id: sync_tags
-        continue-on-error: true
-        timeout-minutes: 5
+      - name: Check for RC tags and determine release strategy
+        id: release_strategy
         run: |
-          # Fetch dev branch information
+          # Fetch all tags and dev branch
+          git fetch --tags
           git fetch origin dev
           
-          # Get the latest RC tag
-          LATEST_RC_TAG=$(git tag -l "*-rc.*" --sort=-version:refname | head -1 || echo "")
+          # Find latest RC tag
+          LATEST_RC=$(git tag -l "*-rc.*" --sort=-version:refname | head -1 || echo "")
           
-          if [ -n "$LATEST_RC_TAG" ]; then
-            echo "Found RC tag: $LATEST_RC_TAG"
+          if [ -n "$LATEST_RC" ]; then
+            echo "Found RC tag: $LATEST_RC"
             
-            # Get the commit hash that the RC tag points to
-            RC_COMMIT=$(git rev-list -n 1 $LATEST_RC_TAG)
+            # Extract base version from RC tag (v0.1.0-rc.2 → v0.1.0)
+            STABLE_VERSION=$(echo "$LATEST_RC" | sed 's/-rc\.[0-9]*$//')
             
-            # Always sync RC tags for version calculation (regardless of commit history)
-            echo "Syncing RC tag for semantic-release version calculation..."
-            # Create the tag locally pointing to the RC commit
-            git tag $LATEST_RC_TAG $RC_COMMIT || true
-            echo "synced=true" >> $GITHUB_OUTPUT
-            echo "rc_tag=$LATEST_RC_TAG" >> $GITHUB_OUTPUT
+            # Check if stable version already exists
+            if git tag | grep -q "^${STABLE_VERSION}$"; then
+              echo "Stable version $STABLE_VERSION already exists, falling back to semantic-release"
+              echo "strategy=semantic-release" >> $GITHUB_OUTPUT
+            else
+              echo "Will promote RC $LATEST_RC to stable $STABLE_VERSION"
+              echo "strategy=promote-rc" >> $GITHUB_OUTPUT
+              echo "rc_tag=$LATEST_RC" >> $GITHUB_OUTPUT
+              echo "stable_version=$STABLE_VERSION" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "No RC tags found"
-            echo "synced=false" >> $GITHUB_OUTPUT
+            echo "No RC tags found, using semantic-release"
+            echo "strategy=semantic-release" >> $GITHUB_OUTPUT
           fi
 
-      - name: Verify semantic-release will see RC tags
+      - name: Promote RC to stable release
+        if: steps.release_strategy.outputs.strategy == 'promote-rc'
         run: |
-          echo "Available tags for semantic-release:"
-          git tag -l --sort=-version:refname | head -10
+          STABLE_VERSION="${{ steps.release_strategy.outputs.stable_version }}"
+          RC_TAG="${{ steps.release_strategy.outputs.rc_tag }}"
           
-          echo "Latest RC tag:"
-          git tag -l "*-rc.*" --sort=-version:refname | head -1 || echo "None"
+          echo "Promoting $RC_TAG to $STABLE_VERSION"
+          
+          # Create stable tag
+          git tag "$STABLE_VERSION"
+          git push origin "$STABLE_VERSION"
+          
+          # Update version in pyproject.toml
+          CLEAN_VERSION=$(echo "$STABLE_VERSION" | sed 's/^v//')
+          sed -i "s/version = \".*\"/version = \"$CLEAN_VERSION\"/" pyproject.toml
+          
+          # Commit version update
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git add pyproject.toml
+          git commit -m "chore: bump version to $CLEAN_VERSION"
+          git push origin main
+          
+          # Create release
+          gh release create "$STABLE_VERSION" \
+            --title "Release $STABLE_VERSION" \
+            --notes "Promoted from $RC_TAG" \
+            --generate-notes
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Python Semantic Release
-        id: release
+      - name: Fallback semantic release (for hotfixes)
+        if: steps.release_strategy.outputs.strategy == 'semantic-release'
         run: |
-          # Ensure all tags are available for version calculation
-          git fetch --tags
+          echo "Running semantic-release for hotfix/patch release"
           uv run semantic-release version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
