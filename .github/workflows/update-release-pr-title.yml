@@ -56,7 +56,7 @@ jobs:
       - name: Update PR title
         if: steps.get_version.outputs.should_update == 'true'
         run: |
-          NEW_TITLE="chore(release): ${{ steps.get_version.outputs.next_version }}"
+          NEW_TITLE="release: ${{ steps.get_version.outputs.next_version }}"
           
           gh pr edit ${{ github.event.pull_request.number }} --title "$NEW_TITLE"
         env:
