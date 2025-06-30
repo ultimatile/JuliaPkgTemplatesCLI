@@ -21,10 +21,8 @@ jobs:
           
       - name: Ensure tag visibility for future dev branches
         run: |
-          # Fetch all tags to ensure they're available
+          # RC tags are now synced during release workflow
+          # This step ensures any remaining tags are available
           git fetch --tags
-          
-          # Push all tags to ensure they're synchronized
           git push --tags || true
-          
-          echo "Tag synchronization completed"
+          echo "Post-release tag synchronization completed"
