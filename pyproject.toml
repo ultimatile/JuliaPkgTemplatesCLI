@@ -39,6 +39,10 @@ version_toml = ["pyproject.toml:project.version"]
 build_command = "uv build"
 upload_to_pypi = false
 upload_to_release = true
+# Consider all tags for version calculation
+tag_format = "v{version}"
+major_on_zero = false
+allow_zero_version = true
 
 [tool.semantic_release.branches.main]
 match = "main"

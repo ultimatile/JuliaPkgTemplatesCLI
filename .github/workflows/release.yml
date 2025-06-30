@@ -93,6 +93,8 @@ jobs:
       - name: Python Semantic Release
         id: release
         run: |
+          # Ensure all tags are available for version calculation
+          git fetch --tags
           uv run semantic-release version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
