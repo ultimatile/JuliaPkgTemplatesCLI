@@ -8,7 +8,7 @@ import pytest
 from pathlib import Path
 from unittest.mock import patch
 
-from juliapkgtemplates.generator import JuliaPackageGenerator
+from juliapkgtemplates.generator import JuliaPackageGenerator, PackageConfig
 
 
 class TestJuliaAuthorMailCombination:
@@ -65,7 +65,7 @@ class TestJuliaAuthorMailCombination:
                     user="johndoe",
                     mail="john@example.com",
                     output_dir=temp_path,
-                    template="minimal",
+                    config=PackageConfig(template="minimal"),
                 )
 
                 assert result_dir.exists()
@@ -106,7 +106,7 @@ class TestJuliaAuthorMailCombination:
                     user=None,
                     mail=None,
                     output_dir=temp_path,
-                    template="minimal",
+                    config=PackageConfig(template="minimal"),
                 )
 
                 assert result_dir.exists()
@@ -147,7 +147,7 @@ class TestJuliaAuthorMailCombination:
                     user=None,
                     mail="john@example.com",
                     output_dir=temp_path,
-                    template="minimal",
+                    config=PackageConfig(template="minimal"),
                 )
 
                 assert result_dir.exists()
@@ -188,7 +188,7 @@ class TestJuliaAuthorMailCombination:
                     user=None,
                     mail=None,
                     output_dir=temp_path,
-                    template="minimal",
+                    config=PackageConfig(template="minimal"),
                 )
 
                 assert result_dir.exists()
