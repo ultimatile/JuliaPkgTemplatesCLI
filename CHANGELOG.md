@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.1.1 (2025-06-30)
+
+### Bug Fixes
+
+- **ci**: Update release PR title condition to match actual PR titles
+  ([`6bd0e1c`](https://github.com/ultimatile/JuliaPkgTemplatesCLI/commit/6bd0e1cedb71955b64c07bfa9a0593f7070c49c5))
+
+
+## v0.1.0 (2025-07-01)
+
+### Bug Fixes
+
+- **ci**: Implement RC promotion workflow to resolve double semantic versioning
+  ([`26287c8`](https://github.com/ultimatile/JuliaPkgTemplatesCLI/commit/26287c81343d590118e2780ff11e0d453772f38a))
+
+
 ## v0.0.4 (2025-06-30)
 
 ### Bug Fixes
