@@ -43,6 +43,8 @@ upload_to_release = true
 tag_format = "v{version}"
 major_on_zero = false
 allow_zero_version = true
+# Enable prerelease pattern matching
+prerelease_token = "rc"
 
 [tool.semantic_release.branches.main]
 match = "main"
