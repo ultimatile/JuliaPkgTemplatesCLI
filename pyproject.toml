@@ -41,11 +41,12 @@ upload_to_pypi = false
 upload_to_release = true
 
 [tool.semantic_release.branches.main]
-channel = "latest"
+match = "main"
 
 [tool.semantic_release.branches.dev]
+match = "dev"
 prerelease = true
-channel = "next"
+prerelease_token = "rc"
 
 [tool.semantic_release.commit_parser_options]
 minor_tags = ["feat"]
