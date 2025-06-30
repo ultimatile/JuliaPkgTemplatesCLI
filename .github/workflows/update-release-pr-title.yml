@@ -9,7 +9,7 @@ on:
 jobs:
   update-pr-title:
     runs-on: ubuntu-latest
-    if: contains(github.event.pull_request.title, 'chore(release)')
+    if: contains(github.event.pull_request.title, 'release')
     
     permissions:
       pull-requests: write
