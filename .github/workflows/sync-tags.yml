@@ -1,0 +1,30 @@
+name: Sync Tags
+
+on:
+  workflow_run:
+    workflows: ["Release"]
+    types: [completed]
+    branches: [main]
+
+jobs:
+  sync-tags:
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+          
+      - name: Ensure tag visibility for future dev branches
+        run: |
+          # Fetch all tags to ensure they're available
+          git fetch --tags
+          
+          # Push all tags to ensure they're synchronized
+          git push --tags || true
+          
+          echo "Tag synchronization completed"
