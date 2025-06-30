@@ -193,8 +193,8 @@ class TestCreateCommand:
                 assert call_args[1]["author"] == "Config Author"
                 assert call_args[1]["user"] == "configuser"
                 assert call_args[1]["mail"] == "config@example.com"
-                assert call_args[1]["license_type"] == "Apache"
-                assert call_args[1]["template"] == "full"
+                assert call_args[1]["config"]["license_type"] == "Apache"
+                assert call_args[1]["config"]["template"] == "full"
 
     def test_create_no_author_delegates_to_pkgtemplates(self, cli_runner, temp_dir):
         """Test create command delegates to PkgTemplates.jl when no author provided"""
