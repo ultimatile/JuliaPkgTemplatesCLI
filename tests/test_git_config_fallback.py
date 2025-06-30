@@ -227,3 +227,86 @@ class TestGitConfigFallback:
                 assert call_args.kwargs["author"] == "Config Author"
                 # Git config fallback (passed as None to Julia script)
                 assert call_args.kwargs["mail"] is None
+
+    def test_author_mail_combination_explicit(self, temp_dir):
+        """Test that author and mail are correctly combined when both are provided"""
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_generator.return_value = mock_instance
+
+            with patch("juliapkgtemplates.cli.load_config", return_value={}):
+                runner = CliRunner()
+                result = runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--author",
+                        "John Doe",
+                        "--mail",
+                        "john@example.com",
+                        "--output-dir",
+                        str(temp_dir),
+                    ],
+                )
+
+                assert result.exit_code == 0
+
+                # Verify that both author and mail were passed to the generator
+                call_args = mock_instance.create_package.call_args
+                assert call_args.kwargs["author"] == "John Doe"
+                assert call_args.kwargs["mail"] == "john@example.com"
+
+    def test_author_only_no_mail(self, temp_dir):
+        """Test that only author is used when mail is not provided"""
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_generator.return_value = mock_instance
+
+            with patch("juliapkgtemplates.cli.load_config", return_value={}):
+                runner = CliRunner()
+                result = runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--author",
+                        "John Doe",
+                        "--output-dir",
+                        str(temp_dir),
+                    ],
+                )
+
+                assert result.exit_code == 0
+
+                # Verify that author was passed but mail is None (will use git config fallback)
+                call_args = mock_instance.create_package.call_args
+                assert call_args.kwargs["author"] == "John Doe"
+                assert call_args.kwargs["mail"] is None
+
+    def test_mail_only_no_author(self, temp_dir):
+        """Test that only mail is used when author is not provided"""
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_generator.return_value = mock_instance
+
+            with patch("juliapkgtemplates.cli.load_config", return_value={}):
+                runner = CliRunner()
+                result = runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--mail",
+                        "john@example.com",
+                        "--output-dir",
+                        str(temp_dir),
+                    ],
+                )
+
+                assert result.exit_code == 0
+
+                # Verify that mail was passed but author is None (will use git config fallback)
+                call_args = mock_instance.create_package.call_args
+                assert call_args.kwargs["author"] is None
+                assert call_args.kwargs["mail"] == "john@example.com"

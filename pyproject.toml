@@ -1,6 +1,6 @@
 [project]
 name = "JuliaPkgTemplatesCLI"
-version = "0.0.2"
+version = "0.1.0-rc.1"
 description = "Julia package template generator with PkgTemplates.jl and mise tasks integration"
 readme = "README.md"
 authors = [{ name = "ultimatile" }]
@@ -41,11 +41,12 @@ upload_to_pypi = false
 upload_to_release = true
 
 [tool.semantic_release.branches.main]
-channel = "latest"
+match = "main"
 
 [tool.semantic_release.branches.dev]
+match = "dev"
 prerelease = true
-channel = "next"
+prerelease_token = "rc"
 
 [tool.semantic_release.commit_parser_options]
 minor_tags = ["feat"]
