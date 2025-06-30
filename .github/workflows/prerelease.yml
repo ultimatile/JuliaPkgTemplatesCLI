@@ -1,24 +1,24 @@
-name: Create RC Tag
+name: Prepare Release PR
 
 on:
   pull_request:
-    types: [opened, ready_for_review]
+    types: [opened, ready_for_review, synchronize]
     branches:
       - main
   workflow_dispatch:
     inputs:
       pr_number:
-        description: 'PR number to create RC for'
+        description: 'PR number to prepare for'
         required: true
         type: string
 
 jobs:
-  create-rc:
+  prepare-release:
     runs-on: ubuntu-latest
     if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
     
     permissions:
-      contents: write
+      contents: read
       pull-requests: write
 
     steps:
@@ -41,27 +41,40 @@ jobs:
         run: |
           uv sync --group dev
 
-      - name: Create RC release
-        id: rc_release
+      - name: Get next version
+        id: get_version
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Run semantic-release to create RC tag
-          uv run semantic-release version
+          # Use semantic-release to get next version without creating tags
+          NEXT_VERSION=$(uv run semantic-release version --print 2>/dev/null || echo "")
           
-          # Get the created RC tag
-          RC_TAG=$(git describe --tags --abbrev=0)
-          echo "rc_tag=$RC_TAG" >> $GITHUB_OUTPUT
+          if [ -n "$NEXT_VERSION" ]; then
+            echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
+            echo "has_version=true" >> $GITHUB_OUTPUT
+          else
+            echo "has_version=false" >> $GITHUB_OUTPUT
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update PR title
+        if: steps.get_version.outputs.has_version == 'true' && contains(github.event.pull_request.title, 'release')
+        run: |
+          PR_NUMBER=${{ github.event.pull_request.number || github.event.inputs.pr_number }}
+          NEW_TITLE="release: v${{ steps.get_version.outputs.next_version }}"
+          
+          gh pr edit $PR_NUMBER --title "$NEW_TITLE"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Comment on PR
-        if: steps.rc_release.outputs.rc_tag
+        if: steps.get_version.outputs.has_version == 'true'
         run: |
           PR_NUMBER=${{ github.event.pull_request.number || github.event.inputs.pr_number }}
-          RC_TAG=${{ steps.rc_release.outputs.rc_tag }}
+          NEXT_VERSION=${{ steps.get_version.outputs.next_version }}
           
-          gh pr comment $PR_NUMBER --body "🚀 RC version **$RC_TAG** has been created for this PR"
+          gh pr comment $PR_NUMBER --body "🔍 Next release version will be: **v$NEXT_VERSION**"
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
