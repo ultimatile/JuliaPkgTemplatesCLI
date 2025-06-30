@@ -1,6 +1,18 @@
 # CHANGELOG
 
 
+## v0.0.4 (2025-06-30)
+
+### Bug Fixes
+
+- Force RC tag sync and improve semantic-release config
+  ([`9ab8691`](https://github.com/ultimatile/JuliaPkgTemplatesCLI/commit/9ab86915c76cde25ffe018bbde58714ddbab32dd))
+
+- Remove commit history check in RC tag sync to ensure tags are always synced - Add prerelease_token
+  to main semantic-release config - This should enable semantic-release to properly recognize RC
+  tags and calculate v0.1.0 from v0.1.0-rc.2
+
+
 ## v0.0.3 (2025-06-30)
 
 ### Bug Fixes
