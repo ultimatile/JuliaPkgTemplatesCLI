@@ -346,7 +346,7 @@ def help_plugin(plugin_name: str):
     if plugin_name_title == "Git":
         click.echo("Options:")
         click.echo(
-            "  manifest=true/false  - Include/exclude Manifest.toml (default: true)"
+            "  manifest=true/false  - Include/exclude Manifest.toml (default: false)"
         )
         click.echo(
             "  ssh=true/false       - Use SSH for Git operations (default: false)"
