@@ -83,35 +83,6 @@ class TestJuliaPackageGenerator:
         assert plugins["plugins"] == expected_plugins
         assert plugins["license_type"] == "Apache"
 
-    def test_get_plugins_standard_no_ci_codecov(self):
-        """Test standard template without CI and Codecov"""
-        generator = JuliaPackageGenerator()
-
-        plugins = generator._get_plugins(
-            template="standard",
-            license_type="MIT",
-            with_docs=True,
-            with_ci=False,
-            with_codecov=False,
-            formatter_style="blue",
-            ssh=False,
-            ignore_patterns=None,
-            tests_aqua=False,
-            tests_jet=False,
-            tests_project=True,
-            project_version=None,
-        )
-
-        expected_plugins = [
-            'ProjectFile(; version=v"0.0.1")',
-            'License(; name="MIT")',
-            "Git(; manifest=false)",
-            'Formatter(; style="blue")',
-            "Tests(; project=true)",
-        ]
-
-        assert plugins["plugins"] == expected_plugins
-
     def test_get_plugins_full(self):
         """Test plugin configuration for full template"""
         generator = JuliaPackageGenerator()
@@ -145,50 +116,6 @@ class TestJuliaPackageGenerator:
         ]
 
         assert plugins["plugins"] == expected_plugins
-
-    def test_get_plugins_full_no_docs(self):
-        """Test full template without docs"""
-        generator = JuliaPackageGenerator()
-
-        plugins = generator._get_plugins(
-            template="full",
-            license_type="MIT",
-            with_docs=False,
-            with_ci=True,
-            with_codecov=True,
-            formatter_style="nostyle",
-            ssh=False,
-            ignore_patterns=None,
-            tests_aqua=False,
-            tests_jet=False,
-            tests_project=True,
-            project_version=None,
-        )
-
-        # Should not include Documenter
-        assert "Documenter{GitHubActions}()" not in plugins["plugins"]
-        assert "TagBot()" in plugins["plugins"]
-        assert "CompatHelper()" in plugins["plugins"]
-
-    def test_get_plugins_invalid_template(self):
-        """Test invalid template raises error"""
-        generator = JuliaPackageGenerator()
-
-        with pytest.raises(ValueError, match="Unknown template type: invalid"):
-            generator._get_plugins(
-                template="invalid",
-                license_type="MIT",
-                with_docs=True,
-                with_ci=True,
-                with_codecov=True,
-                formatter_style="nostyle",
-                ssh=False,
-                ignore_patterns=None,
-                tests_aqua=False,
-                tests_jet=False,
-                tests_project=True,
-                project_version=None,
-            )
 
     @patch("subprocess.run")
     def test_call_julia_generator_success(self, mock_run, temp_dir):

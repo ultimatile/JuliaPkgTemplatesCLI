@@ -1,3 +1,0 @@
-"""
-Test helpers for JuliaPkgTemplatesCLI
-"""
