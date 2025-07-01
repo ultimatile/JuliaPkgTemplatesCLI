@@ -311,7 +311,7 @@ class JuliaPackageGenerator:
         git_options = []
 
         # Set defaults
-        manifest = True
+        manifest = False
         ssh = False
         ignore_patterns = None
 
