@@ -332,10 +332,22 @@ def create(
 
     cli_plugin_options = parse_plugin_options_from_cli(**kwargs)
 
+    # Apply config defaults if CLI arguments not provided
+    final_author = author or defaults.get("author")
+    final_user = user or defaults.get("user")
+    final_mail = mail or defaults.get("mail")
+
+    # Display configuration being used
+    click.echo(f"Author: {final_author}")
+    click.echo(f"User: {final_user}")
+    click.echo(f"Mail: {final_mail}")
+
     # Build final configuration with proper precedence
     final_config = {}
     final_config["template"] = template or defaults.get("template", "standard")
-    final_config["license_type"] = license or defaults.get("license_type")
+    final_config["license_type"] = (
+        license or defaults.get("license_type") or defaults.get("license")
+    )
     final_config["julia_version"] = julia_version or defaults.get("julia_version")
 
     # Merge plugin options (CLI overrides config)
@@ -370,7 +382,12 @@ def create(
     if dry_run:
         # Preview Julia Template function without package creation side effects
         julia_code = generator.generate_julia_code(
-            package_name, author, user, mail, Path(output_dir), package_config
+            package_name,
+            final_author,
+            final_user,
+            final_mail,
+            Path(output_dir),
+            package_config,
         )
         click.echo("Would execute the following Julia code:")
         click.echo("=" * 50)
@@ -380,7 +397,12 @@ def create(
 
     try:
         package_dir = generator.create_package(
-            package_name, author, user, mail, Path(output_dir), package_config
+            package_name,
+            final_author,
+            final_user,
+            final_mail,
+            Path(output_dir),
+            package_config,
         )
         click.echo(f"Package '{package_name}' created successfully at {package_dir}")
     except Exception as e:
@@ -469,17 +491,50 @@ def plugin_info(plugin_name: Optional[str]):
 
 
 @main.command()
-@click.argument("key")
-@click.argument("value")
-def config(key: str, value: str):
+@click.option("--author", help="Set default author")
+@click.option("--user", help="Set default user")
+@click.option("--mail", help="Set default mail")
+@click.option("--license", help="Set default license")
+@click.option("--template", help="Set default template")
+def config(
+    author: Optional[str],
+    user: Optional[str],
+    mail: Optional[str],
+    license: Optional[str],
+    template: Optional[str],
+):
     """Set configuration values"""
     config_data = load_config()
     if "default" not in config_data:
         config_data["default"] = {}
 
-    config_data["default"][key] = value
-    save_config(config_data)
-    click.echo(f"Set {key} = {value}")
+    updated = False
+    if author is not None:
+        config_data["default"]["author"] = author
+        click.echo(f"Set default author: {author}")
+        updated = True
+    if user is not None:
+        config_data["default"]["user"] = user
+        click.echo(f"Set default user: {user}")
+        updated = True
+    if mail is not None:
+        config_data["default"]["mail"] = mail
+        click.echo(f"Set default mail: {mail}")
+        updated = True
+    if license is not None:
+        config_data["default"]["license_type"] = license
+        click.echo(f"Set default license: {license}")
+        updated = True
+    if template is not None:
+        config_data["default"]["template"] = template
+        click.echo(f"Set default template: {template}")
+        updated = True
+
+    if updated:
+        save_config(config_data)
+        click.echo("Configuration saved")
+    else:
+        click.echo("No configuration options provided")
 
 
 if __name__ == "__main__":

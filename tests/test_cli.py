@@ -233,11 +233,11 @@ class TestCreateCommand:
 
                 # Check that config values were used
                 call_args = mock_instance.create_package.call_args
-                assert call_args[1]["author"] == "Config Author"
-                assert call_args[1]["user"] == "configuser"
-                assert call_args[1]["mail"] == "config@example.com"
-                assert call_args[1]["config"].license_type == "Apache"
-                assert call_args[1]["config"].template == "full"
+                assert call_args[0][1] == "Config Author"  # author (position 1)
+                assert call_args[0][2] == "configuser"  # user (position 2)
+                assert call_args[0][3] == "config@example.com"  # mail (position 3)
+                assert call_args[0][5].license_type == "Apache"  # config (position 5)
+                assert call_args[0][5].template == "full"
 
     def test_create_no_author_delegates_to_pkgtemplates(self, cli_runner, temp_dir):
         """Test create command delegates to PkgTemplates.jl when no author provided"""
@@ -257,9 +257,9 @@ class TestCreateCommand:
                 # Verify that create_package was called with author=None, user=None, and mail=None, letting PkgTemplates.jl handle it
                 mock_instance.create_package.assert_called_once()
                 call_args = mock_instance.create_package.call_args
-                assert call_args.kwargs["author"] is None
-                assert call_args.kwargs["user"] is None
-                assert call_args.kwargs["mail"] is None
+                assert call_args[0][1] is None  # author (position 1)
+                assert call_args[0][2] is None  # user (position 2)
+                assert call_args[0][3] is None  # mail (position 3)
 
 
 class TestConfigCommand:
