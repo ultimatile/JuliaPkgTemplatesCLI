@@ -180,6 +180,51 @@ class JuliaPackageGenerator:
 
         return package_dir
 
+    def generate_julia_code(
+        self,
+        package_name: str,
+        author: Optional[str],
+        user: Optional[str],
+        mail: Optional[str],
+        output_dir: Path,
+        config: Optional[PackageConfig] = None,
+    ) -> str:
+        """
+        Generate Julia Template function code without executing it (for dry-run mode)
+
+        Args:
+            package_name: Name of the package
+            author: Author name
+            user: Git hosting username
+            mail: Email address
+            output_dir: Directory where package would be created
+            config: PackageConfig instance with package creation settings
+
+        Returns:
+            String containing the Julia Template function code
+        """
+        # Use provided config or create default
+        cfg = config if config is not None else PackageConfig()
+
+        plugins = self._get_plugins(
+            cfg.template,
+            cfg.license_type,
+            cfg.with_docs,
+            cfg.with_ci,
+            cfg.with_codecov,
+            cfg.formatter_style,
+            cfg.ssh,
+            cfg.ignore_patterns,
+            cfg.tests_aqua,
+            cfg.tests_jet,
+            cfg.tests_project,
+            cfg.project_version,
+        )
+
+        return self._generate_julia_template_code(
+            package_name, author, user, mail, output_dir, plugins, cfg.julia_version
+        )
+
     def _get_plugins(
         self,
         template: str,
@@ -296,6 +341,62 @@ class JuliaPackageGenerator:
     def _build_compathelper_plugin(self) -> str:
         """Build CompatHelper plugin configuration"""
         return "CompatHelper()"
+
+    def _generate_julia_template_code(
+        self,
+        package_name: str,
+        author: Optional[str],
+        user: Optional[str],
+        mail: Optional[str],
+        output_dir: Path,
+        plugins: Dict[str, Any],
+        julia_version: Optional[str] = None,
+    ) -> str:
+        """Generate Julia Template function code for visualization"""
+        plugins_str = "[" + ", ".join(plugins["plugins"]) + "]"
+
+        # Build the Julia Template function code
+        julia_code = "using PkgTemplates\n\n"
+
+        # Template constructor
+        template_args = []
+
+        # Add author if provided
+        if author:
+            template_args.append(f'authors=["{author}"]')
+
+        # Add user if provided
+        if user:
+            template_args.append(f'user="{user}"')
+
+        # Add mail if provided
+        if mail:
+            template_args.append(f'mail="{mail}"')
+
+        # Add output directory
+        template_args.append(f'dir="{output_dir}"')
+
+        # Add julia version if provided
+        if julia_version:
+            # Handle julia version formatting - remove leading 'v' if present
+            version_str = julia_version.lstrip("v")
+            template_args.append(f'julia=v"{version_str}"')
+
+        # Add plugins
+        template_args.append(f"plugins={plugins_str}")
+
+        julia_code += "t = Template(;\n"
+        for i, arg in enumerate(template_args):
+            julia_code += f"    {arg}"
+            if i < len(template_args) - 1:
+                julia_code += ","
+            julia_code += "\n"
+        julia_code += ")\n\n"
+
+        # Package generation call
+        julia_code += f't("{package_name}")\n'
+
+        return julia_code
 
     def _call_julia_generator(
         self,
