@@ -241,9 +241,13 @@ def create(
 ):
     """Create a new Julia package"""
 
-    if not package_name.replace("_", "").replace("-", "").isalnum():
+    name_to_check = package_name
+    if package_name.endswith(".jl"):
+        name_to_check = package_name[:-3]
+
+    if not name_to_check.replace("_", "").replace("-", "").isalnum():
         click.echo(
-            "Error: Package name must contain only letters, numbers, hyphens, and underscores",
+            "Error: Package name must contain only letters, numbers, hyphens, and underscores (optionally ending with .jl)",
             err=True,
         )
         sys.exit(1)
