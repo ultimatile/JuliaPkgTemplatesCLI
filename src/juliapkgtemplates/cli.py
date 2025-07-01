@@ -1,5 +1,5 @@
 """
-CLI interface for JuliaPkgTemplatesCLI - Julia package generator
+New CLI interface with dynamic plugin options
 """
 
 import os
@@ -118,6 +118,58 @@ def get_mail_help() -> str:
     )
 
 
+def parse_plugin_option_value(value_str: str):
+    """Parse plugin option value from string, handling basic type conversion"""
+    if value_str.lower() in ("true", "yes", "1"):
+        return True
+    elif value_str.lower() in ("false", "no", "0"):
+        return False
+    elif value_str.startswith("[") and value_str.endswith("]"):
+        # Simple list parsing: [item1,item2,item3]
+        content = value_str[1:-1].strip()
+        if not content:
+            return []
+        return [item.strip().strip("\"'") for item in content.split(",")]
+    elif value_str.isdigit():
+        return int(value_str)
+    else:
+        return value_str
+
+
+def parse_plugin_options_from_cli(**kwargs) -> dict:
+    """Parse plugin options from CLI arguments"""
+    plugin_options = {}
+
+    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+        option_key = f"{plugin.lower()}_option"
+        if option_key in kwargs and kwargs[option_key]:
+            plugin_options[plugin] = {}
+            for option_pair in kwargs[option_key]:
+                if "=" in option_pair:
+                    key, value = option_pair.split("=", 1)
+                    plugin_options[plugin][key.strip()] = parse_plugin_option_value(
+                        value.strip()
+                    )
+
+    return plugin_options
+
+
+def create_dynamic_plugin_options(cmd):
+    """Add dynamic plugin options to command"""
+    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+        option_name = f"--{plugin.lower()}-option"
+        help_text = (
+            f"Set {plugin} plugin options as key=value pairs (e.g., manifest=false)"
+        )
+
+        def add_option(plugin_name=plugin):
+            return click.option(option_name, multiple=True, help=help_text)
+
+        cmd = add_option()(cmd)
+
+    return cmd
+
+
 @click.group()
 @click.version_option(package_name="JuliaPkgTemplatesCLI")
 def main():
@@ -162,60 +214,12 @@ def main():
         ]
     ),
     help=get_help_with_fallback(
-        "License type", "license", "uses PkgTemplates.jl default if not set"
+        "License type", "license_type", "uses PkgTemplates.jl default if not set"
     ),
-)
-@click.option(
-    "--with-docs/--no-docs",
-    default=True,
-    help="Include documentation setup (default: yes)",
-)
-@click.option(
-    "--with-ci/--no-ci", default=True, help="Include CI/CD setup (default: yes)"
-)
-@click.option(
-    "--with-codecov/--no-codecov",
-    default=True,
-    help="Include Codecov integration (default: yes)",
-)
-@click.option(
-    "--formatter-style",
-    type=click.Choice(["nostyle", "sciml", "blue", "yas"]),
-    help=get_help_with_default("JuliaFormatter style", "formatter_style", "nostyle"),
 )
 @click.option(
     "--julia-version",
     help='Julia version constraint (e.g., v"1.10.9") for Template constructor',
-)
-@click.option(
-    "--ssh/--no-ssh",
-    default=None,
-    help=get_help_with_default("Use SSH for Git operations", "ssh", "False"),
-)
-@click.option(
-    "--ignore-patterns",
-    help="Comma-separated list of patterns to ignore in Git (e.g., .vscode,.DS_Store)",
-)
-@click.option(
-    "--tests-aqua/--no-tests-aqua",
-    default=None,
-    help=get_help_with_default("Enable Aqua.jl in Tests plugin", "tests_aqua", "False"),
-)
-@click.option(
-    "--tests-jet/--no-tests-jet",
-    default=None,
-    help=get_help_with_default("Enable JET.jl in Tests plugin", "tests_jet", "False"),
-)
-@click.option(
-    "--tests-project/--no-tests-project",
-    default=None,
-    help=get_help_with_default(
-        "Enable separate project for tests", "tests_project", "True"
-    ),
-)
-@click.option(
-    "--project-version",
-    help='Initial version for ProjectFile plugin (e.g., v"0.0.1")',
 )
 @click.option(
     "--dry-run",
@@ -223,6 +227,7 @@ def main():
     default=False,
     help="Show what Julia Template function would be executed without actually running it",
 )
+@create_dynamic_plugin_options
 @click.pass_context
 def create(
     ctx: click.Context,
@@ -233,18 +238,9 @@ def create(
     output_dir: str,
     template: Optional[str],
     license: Optional[str],
-    with_docs: bool,
-    with_ci: bool,
-    with_codecov: bool,
-    formatter_style: Optional[str],
     julia_version: Optional[str],
-    ssh: Optional[bool],
-    ignore_patterns: Optional[str],
-    tests_aqua: Optional[bool],
-    tests_jet: Optional[bool],
-    tests_project: Optional[bool],
-    project_version: Optional[str],
     dry_run: bool,
+    **kwargs,
 ):
     """Create a new Julia package"""
 
@@ -263,253 +259,156 @@ def create(
         click.echo("Error: Package name must start with a letter", err=True)
         sys.exit(1)
 
+    # Load config and merge with CLI arguments
     config = load_config()
     defaults = config.get("default", {})
 
-    # Get author from config if not provided (let PkgTemplates.jl handle git config fallback)
-    if not author:
-        author = defaults.get("author") or None
+    # Parse plugin options from CLI
+    cli_plugin_options = parse_plugin_options_from_cli(**kwargs)
 
-    # Get user from config if not provided (let PkgTemplates.jl handle git config fallback)
-    if not user:
-        user = defaults.get("user") or None
+    # Merge config and CLI arguments
+    final_config = {}
+    final_config["template"] = template or defaults.get("template", "standard")
+    final_config["license_type"] = license or defaults.get("license_type")
+    final_config["julia_version"] = julia_version or defaults.get("julia_version")
 
-    # Get mail from config if not provided (let PkgTemplates.jl handle git config fallback)
-    if not mail:
-        mail = defaults.get("mail") or None
+    # Merge plugin options (CLI overrides config)
+    config_plugin_options = defaults.copy()
+    # Remove non-plugin options from config
+    for key in ["template", "license_type", "julia_version"]:
+        config_plugin_options.pop(key, None)
 
-    if license is None:
-        license = defaults.get("license")
+    # Convert config plugin options to proper format
+    config_plugin_dict = {}
+    for key, value in config_plugin_options.items():
+        if "." in key:
+            plugin_name, option_name = key.split(".", 1)
+            if plugin_name not in config_plugin_dict:
+                config_plugin_dict[plugin_name] = {}
+            config_plugin_dict[plugin_name][option_name] = value
 
-    if template is None:
-        template = defaults.get("template") or "standard"
+    # Merge CLI plugin options (CLI takes precedence)
+    for plugin, options in cli_plugin_options.items():
+        if plugin not in config_plugin_dict:
+            config_plugin_dict[plugin] = {}
+        config_plugin_dict[plugin].update(options)
 
-    if formatter_style is None:
-        formatter_style = defaults.get("formatter_style") or "nostyle"
+    final_config["plugin_options"] = config_plugin_dict if config_plugin_dict else {}
 
-    if julia_version is None:
-        julia_version = defaults.get("julia_version") or "1.10"
+    # Create PackageConfig
+    package_config = PackageConfig.from_dict(final_config)
 
-    if ssh is None:
-        ssh = bool(defaults.get("ssh", False))
+    # Create generator and run
+    generator = JuliaPackageGenerator()
 
-    if ignore_patterns is None:
-        ignore_patterns = defaults.get("ignore_patterns") or ""
-
-    if tests_aqua is None:
-        tests_aqua = bool(defaults.get("tests_aqua", False))
-
-    if tests_jet is None:
-        tests_jet = bool(defaults.get("tests_jet", False))
-
-    if tests_project is None:
-        tests_project = bool(defaults.get("tests_project", True))
-
-    if project_version is None:
-        project_version = defaults.get("project_version") or "0.1.0"
-
-    click.echo(f"Creating Julia package: {package_name}")
-    click.echo(f"Author: {author if author is not None else 'None'}")
-    click.echo(f"User: {user if user is not None else 'None (will use git config)'}")
-    click.echo(f"Mail: {mail if mail is not None else 'None (will use git config)'}")
-    click.echo(f"Template: {template}")
-    click.echo(f"Output directory: {output_dir}")
+    if dry_run:
+        # Show what would be executed
+        julia_code = generator.generate_julia_code(
+            package_name, author, user, mail, Path(output_dir), package_config
+        )
+        click.echo("Would execute the following Julia code:")
+        click.echo("=" * 50)
+        click.echo(julia_code)
+        click.echo("=" * 50)
+        return
 
     try:
-        generator = JuliaPackageGenerator()
-        config = PackageConfig(
-            template=template,
-            license_type=license,
-            with_docs=with_docs,
-            with_ci=with_ci,
-            with_codecov=with_codecov,
-            formatter_style=formatter_style,
-            julia_version=julia_version,
-            ssh=ssh,
-            ignore_patterns=ignore_patterns,
-            tests_aqua=tests_aqua,
-            tests_jet=tests_jet,
-            tests_project=tests_project,
-            project_version=project_version,
-        )
-        if dry_run:
-            julia_code = generator.generate_julia_code(
-                package_name=package_name,
-                author=author,
-                user=user,
-                mail=mail,
-                output_dir=Path(output_dir),
-                config=config,
-            )
-            click.echo(
-                "\n=== DRY RUN: Julia Template function that would be executed ==="
-            )
-            click.echo(julia_code)
-            click.echo("=== END DRY RUN ===")
-            return
-
         package_dir = generator.create_package(
-            package_name=package_name,
-            author=author,
-            user=user,
-            mail=mail,
-            output_dir=Path(output_dir),
-            config=config,
+            package_name, author, user, mail, Path(output_dir), package_config
         )
-
-        click.echo(f"\nPackage created successfully at: {package_dir}")
-        click.echo("\nNext steps:")
-        click.echo(f"  cd {package_dir.name}")
-        click.echo("  mise run instantiate  # Install dependencies")
-        click.echo("  mise run test         # Run tests")
-        click.echo("  mise run repl         # Start Julia REPL")
-
+        click.echo(f"Package '{package_name}' created successfully at {package_dir}")
     except Exception as e:
-        click.echo(f"Error: {e}", err=True)
+        click.echo(f"Error creating package: {e}", err=True)
         sys.exit(1)
 
 
+@main.group()
+def plugin():
+    """Plugin-related commands"""
+    pass
+
+
+@plugin.command("help")
+@click.argument("plugin_name")
+def help_plugin(plugin_name: str):
+    """Show help for a specific plugin"""
+    plugin_name_title = plugin_name.title()
+
+    if plugin_name_title not in JuliaPackageGenerator.KNOWN_PLUGINS:
+        available = ", ".join(JuliaPackageGenerator.KNOWN_PLUGINS)
+        click.echo(f"Unknown plugin: {plugin_name}")
+        click.echo(f"Available plugins: {available}")
+        sys.exit(1)
+
+    click.echo(f"Help for {plugin_name_title} plugin:")
+    click.echo("=" * 40)
+
+    if plugin_name_title == "Git":
+        click.echo("Options:")
+        click.echo(
+            "  manifest=true/false  - Include/exclude Manifest.toml (default: true)"
+        )
+        click.echo(
+            "  ssh=true/false       - Use SSH for Git operations (default: false)"
+        )
+        click.echo("  ignore=[pattern,...]  - Git ignore patterns (default: none)")
+        click.echo("\nExample:")
+        click.echo(
+            "  jtc create MyPkg --git-option manifest=false --git-option ssh=true"
+        )
+
+    elif plugin_name_title == "Tests":
+        click.echo("Options:")
+        click.echo(
+            "  project=true/false   - Separate project for tests (default: true)"
+        )
+        click.echo("  aqua=true/false      - Enable Aqua.jl testing (default: false)")
+        click.echo("  jet=true/false       - Enable JET.jl testing (default: false)")
+        click.echo("\nExample:")
+        click.echo(
+            "  jtc create MyPkg --tests-option aqua=true --tests-option jet=true"
+        )
+
+    elif plugin_name_title == "Formatter":
+        click.echo("Options:")
+        click.echo(
+            "  style=nostyle/blue/sciml/yas  - JuliaFormatter style (default: nostyle)"
+        )
+        click.echo("\nExample:")
+        click.echo("  jtc create MyPkg --formatter-option style=blue")
+
+    elif plugin_name_title == "ProjectFile":
+        click.echo("Options:")
+        click.echo("  version=x.y.z        - Initial package version (default: 0.0.1)")
+        click.echo("\nExample:")
+        click.echo("  jtc create MyPkg --projectfile-option version=1.0.0")
+
+    elif plugin_name_title == "License":
+        click.echo("Options:")
+        click.echo("  name=license_name    - License identifier")
+        click.echo("\nExample:")
+        click.echo("  jtc create MyPkg --license-option name=Apache-2.0")
+        click.echo(
+            "\nNote: Use --license for common licenses, --license-option for custom ones"
+        )
+
+    else:
+        click.echo(f"No specific help available for {plugin_name_title} plugin.")
+        click.echo("This plugin typically has no configurable options.")
+
+
 @main.command()
-@click.option("--author", "-a", help="Default author name")
-@click.option("--user", "-u", help="Default GitHub username")
-@click.option("--mail", "-m", help="Default email address")
-@click.option(
-    "--license",
-    type=click.Choice(
-        [
-            "MIT",
-            "Apache",
-            "BSD2",
-            "BSD3",
-            "GPL2",
-            "GPL3",
-            "MPL",
-            "ISC",
-            "LGPL2",
-            "LGPL3",
-            "AGPL3",
-            "EUPL",
-        ]
-    ),
-    help="Default license type",
-)
-@click.option(
-    "--template",
-    type=click.Choice(["minimal", "standard", "full"]),
-    help="Default template type",
-)
-@click.option(
-    "--formatter-style",
-    type=click.Choice(["nostyle", "sciml", "blue", "yas"]),
-    help="Default JuliaFormatter style",
-)
-@click.option(
-    "--julia-version",
-    help="Default Julia version constraint",
-)
-@click.option(
-    "--ssh/--no-ssh",
-    default=None,
-    help="Default SSH setting for Git operations",
-)
-@click.option(
-    "--ignore-patterns",
-    help="Default comma-separated list of Git ignore patterns",
-)
-@click.option(
-    "--tests-aqua/--no-tests-aqua",
-    default=None,
-    help="Default Aqua.jl setting for Tests plugin",
-)
-@click.option(
-    "--tests-jet/--no-tests-jet",
-    default=None,
-    help="Default JET.jl setting for Tests plugin",
-)
-@click.option(
-    "--tests-project/--no-tests-project",
-    default=None,
-    help="Default separate project setting for tests",
-)
-@click.option(
-    "--project-version",
-    help="Default initial version for ProjectFile plugin",
-)
-def config(
-    author: Optional[str],
-    user: Optional[str],
-    mail: Optional[str],
-    license: Optional[str],
-    template: Optional[str],
-    formatter_style: Optional[str],
-    julia_version: Optional[str],
-    ssh: Optional[bool],
-    ignore_patterns: Optional[str],
-    tests_aqua: Optional[bool],
-    tests_jet: Optional[bool],
-    tests_project: Optional[bool],
-    project_version: Optional[str],
-):
-    """Configure default settings"""
-    config = load_config()
+@click.argument("key")
+@click.argument("value")
+def config(key: str, value: str):
+    """Set configuration values"""
+    config_data = load_config()
+    if "default" not in config_data:
+        config_data["default"] = {}
 
-    if "default" not in config:
-        config["default"] = {}
-
-    if author:
-        config["default"]["author"] = author
-        click.echo(f"Set default author: {author}")
-
-    if user:
-        config["default"]["user"] = user
-        click.echo(f"Set default user: {user}")
-
-    if mail:
-        config["default"]["mail"] = mail
-        click.echo(f"Set default mail: {mail}")
-
-    if license:
-        config["default"]["license"] = license
-        click.echo(f"Set default license: {license}")
-
-    if template:
-        config["default"]["template"] = template
-        click.echo(f"Set default template: {template}")
-
-    if formatter_style:
-        config["default"]["formatter_style"] = formatter_style
-        click.echo(f"Set default formatter style: {formatter_style}")
-
-    if julia_version:
-        config["default"]["julia_version"] = julia_version
-        click.echo(f"Set default Julia version: {julia_version}")
-
-    if ssh is not None:
-        config["default"]["ssh"] = ssh
-        click.echo(f"Set default SSH: {ssh}")
-
-    if ignore_patterns:
-        config["default"]["ignore_patterns"] = ignore_patterns
-        click.echo(f"Set default ignore patterns: {ignore_patterns}")
-
-    if tests_aqua is not None:
-        config["default"]["tests_aqua"] = tests_aqua
-        click.echo(f"Set default tests Aqua: {tests_aqua}")
-
-    if tests_jet is not None:
-        config["default"]["tests_jet"] = tests_jet
-        click.echo(f"Set default tests JET: {tests_jet}")
-
-    if tests_project is not None:
-        config["default"]["tests_project"] = tests_project
-        click.echo(f"Set default tests project: {tests_project}")
-
-    if project_version:
-        config["default"]["project_version"] = project_version
-        click.echo(f"Set default project version: {project_version}")
-
-    save_config(config)
-    click.echo(f"Configuration saved to: {get_config_path()}")
+    config_data["default"][key] = value
+    save_config(config_data)
+    click.echo(f"Set {key} = {value}")
 
 
 if __name__ == "__main__":
