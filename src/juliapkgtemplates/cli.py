@@ -322,16 +322,21 @@ def create(
         sys.exit(1)
 
 
-@main.group()
-def plugin():
-    """Plugin-related commands"""
-    pass
+@main.command("plugin-info")
+@click.argument("plugin_name", required=False)
+def plugin_info(plugin_name: Optional[str]):
+    """Show information about plugins or a specific plugin"""
+    if plugin_name is None:
+        click.echo("Available plugins:")
+        click.echo("=" * 40)
+        for p in JuliaPackageGenerator.KNOWN_PLUGINS:
+            click.echo(f"  {p}")
+        click.echo(
+            "\nUse 'jtc plugin-info <plugin_name>' to see options for a specific plugin."
+        )
+        click.echo("Example: jtc plugin-info Git")
+        return
 
-
-@plugin.command("help")
-@click.argument("plugin_name")
-def help_plugin(plugin_name: str):
-    """Show help for a specific plugin"""
     plugin_name_title = plugin_name.title()
 
     if plugin_name_title not in JuliaPackageGenerator.KNOWN_PLUGINS:
