@@ -136,20 +136,76 @@ def parse_plugin_option_value(value_str: str):
         return value_str
 
 
+def parse_multiple_key_value_pairs(option_string: str) -> dict:
+    """Parse multiple key=value pairs from a single string"""
+    options = {}
+    if not option_string:
+        return options
+
+    # Split by spaces, but handle quoted values
+    parts = []
+    current_part = ""
+    in_quotes = False
+    quote_char = None
+
+    for char in option_string:
+        if char in ('"', "'") and not in_quotes:
+            in_quotes = True
+            quote_char = char
+            current_part += char
+        elif char == quote_char and in_quotes:
+            in_quotes = False
+            quote_char = None
+            current_part += char
+        elif char == " " and not in_quotes:
+            if current_part.strip():
+                parts.append(current_part.strip())
+            current_part = ""
+        else:
+            current_part += char
+
+    if current_part.strip():
+        parts.append(current_part.strip())
+
+    # Parse each key=value pair
+    for part in parts:
+        if "=" in part:
+            key, value = part.split("=", 1)
+            # Remove quotes from value if present
+            value = value.strip()
+            if (value.startswith('"') and value.endswith('"')) or (
+                value.startswith("'") and value.endswith("'")
+            ):
+                value = value[1:-1]
+            options[key.strip()] = parse_plugin_option_value(value)
+
+    return options
+
+
 def parse_plugin_options_from_cli(**kwargs) -> dict:
     """Parse plugin options from CLI arguments"""
     plugin_options = {}
 
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
-        option_key = f"{plugin.lower()}_option"
-        if option_key in kwargs and kwargs[option_key]:
+        # Check for both old format (--git-option) and new format (--gitoption)
+        old_option_key = f"{plugin.lower()}_option"
+        new_option_key = f"{plugin.lower()}option"
+
+        # Handle old format (multiple occurrences)
+        if old_option_key in kwargs and kwargs[old_option_key]:
             plugin_options[plugin] = {}
-            for option_pair in kwargs[option_key]:
+            for option_pair in kwargs[old_option_key]:
                 if "=" in option_pair:
                     key, value = option_pair.split("=", 1)
                     plugin_options[plugin][key.strip()] = parse_plugin_option_value(
                         value.strip()
                     )
+
+        # Handle new format (single string with multiple key=value pairs)
+        elif new_option_key in kwargs and kwargs[new_option_key]:
+            options = parse_multiple_key_value_pairs(kwargs[new_option_key])
+            if options:
+                plugin_options[plugin] = options
 
     return plugin_options
 
@@ -157,15 +213,24 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
 def create_dynamic_plugin_options(cmd):
     """Add dynamic plugin options to command"""
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
-        option_name = f"--{plugin.lower()}-option"
-        help_text = (
+        # Add old format option (multiple occurrences)
+        old_option_name = f"--{plugin.lower()}-option"
+        old_help_text = (
             f"Set {plugin} plugin options as key=value pairs (e.g., manifest=false)"
         )
 
-        def add_option(plugin_name=plugin):
-            return click.option(option_name, multiple=True, help=help_text)
+        # Add new format option (single string with multiple pairs)
+        new_option_name = f"--{plugin.lower()}option"
+        new_help_text = f"Set {plugin} plugin options as space-separated key=value pairs (e.g., 'manifest=false ssh=true')"
 
-        cmd = add_option()(cmd)
+        def add_old_option(plugin_name=plugin):
+            return click.option(old_option_name, multiple=True, help=old_help_text)
+
+        def add_new_option(plugin_name=plugin):
+            return click.option(new_option_name, help=new_help_text)
+
+        cmd = add_old_option()(cmd)
+        cmd = add_new_option()(cmd)
 
     return cmd
 
