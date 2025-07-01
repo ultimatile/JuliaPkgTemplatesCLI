@@ -161,6 +161,51 @@ class TestCreateCommand:
             in result.output
         )
 
+    def test_create_with_jl_suffix(self, cli_runner, temp_dir):
+        """Test create command with valid package name ending in .jl"""
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_generator.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage.jl",
+                    "--author",
+                    "Test Author",
+                    "--user",
+                    "testuser",
+                    "--mail",
+                    "test@example.com",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "Creating Julia package: TestPackage.jl" in result.output
+            assert "Package created successfully" in result.output
+            mock_instance.create_package.assert_called_once()
+
+    def test_create_invalid_jl_suffix_name(self, cli_runner):
+        """Test create command with invalid base name but .jl suffix"""
+        result = cli_runner.invoke(
+            create,
+            [
+                "123Invalid.jl",
+                "--author",
+                "Test Author",
+                "--user",
+                "testuser",
+                "--mail",
+                "test@example.com",
+            ],
+        )
+
+        assert result.exit_code == 1
+        assert "Package name must start with a letter" in result.output
+
     def test_create_with_config_defaults(self, cli_runner, temp_dir):
         """Test create command using config defaults"""
         with patch("juliapkgtemplates.cli.load_config") as mock_load_config:
