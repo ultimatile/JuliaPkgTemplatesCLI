@@ -42,7 +42,7 @@ class TestJuliaPackageGenerator:
         expected_plugins = [
             'ProjectFile(; version=v"0.0.1")',
             'License(; name="MIT")',
-            "Git(; manifest=true)",
+            "Git(; manifest=false)",
             'Formatter(; style="nostyle")',
             "Tests(; project=true)",
         ]
@@ -73,7 +73,7 @@ class TestJuliaPackageGenerator:
         expected_plugins = [
             'ProjectFile(; version=v"0.0.1")',
             'License(; name="ASL")',
-            "Git(; manifest=true)",
+            "Git(; manifest=false)",
             'Formatter(; style="sciml")',
             "Tests(; project=true)",
             "GitHubActions()",
@@ -105,7 +105,7 @@ class TestJuliaPackageGenerator:
         expected_plugins = [
             'ProjectFile(; version=v"0.0.1")',
             'License(; name="MIT")',
-            "Git(; manifest=true)",
+            "Git(; manifest=false)",
             'Formatter(; style="blue")',
             "Tests(; project=true)",
         ]
@@ -134,7 +134,7 @@ class TestJuliaPackageGenerator:
         expected_plugins = [
             'ProjectFile(; version=v"0.0.1")',
             'License(; name="BSD3")',
-            "Git(; manifest=true)",
+            "Git(; manifest=false)",
             'Formatter(; style="yas")',
             "Tests(; project=true)",
             "GitHubActions()",

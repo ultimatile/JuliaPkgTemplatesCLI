@@ -53,14 +53,14 @@ class TestPluginOptions:
         assert "manifest=false" in git_plugin
         assert git_plugin == "Git(; manifest=false)"
 
-    def test_git_plugin_with_manifest_true_default(self):
-        """Test Git plugin generation with default manifest=true"""
+    def test_git_plugin_with_manifest_false_default(self):
+        """Test Git plugin generation with default manifest=false"""
         generator = JuliaPackageGenerator()
 
         git_plugin = generator._build_git_plugin(None)
 
-        assert "manifest=true" in git_plugin
-        assert git_plugin == "Git(; manifest=true)"
+        assert "manifest=false" in git_plugin
+        assert git_plugin == "Git(; manifest=false)"
 
     def test_git_plugin_with_multiple_options(self):
         """Test Git plugin generation with multiple options"""
