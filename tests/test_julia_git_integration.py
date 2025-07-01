@@ -42,7 +42,9 @@ class TestJuliaGitIntegration:
                 julia_script = temp_dir / "pkg_generator.jl"
                 julia_script.touch()
 
-                plugins = {"plugins": ['License(; name="MIT")', "Git(; manifest=true)"]}
+                plugins = {
+                    "plugins": ['License(; name="MIT")', "Git(; manifest=false)"]
+                }
 
                 try:
                     generator._call_julia_generator(
@@ -77,7 +79,7 @@ class TestJuliaGitIntegration:
                         "testuser",
                         "test@example.com",
                         str(temp_dir),
-                        '[License(; name="MIT"), Git(; manifest=true)]',
+                        '[License(; name="MIT"), Git(; manifest=false)]',
                     ]
 
                     assert call_args == expected_order
