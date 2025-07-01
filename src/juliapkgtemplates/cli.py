@@ -217,6 +217,12 @@ def main():
     "--project-version",
     help='Initial version for ProjectFile plugin (e.g., v"0.0.1")',
 )
+@click.option(
+    "--dry-run",
+    is_flag=True,
+    default=False,
+    help="Show what Julia Template function would be executed without actually running it",
+)
 @click.pass_context
 def create(
     ctx: click.Context,
@@ -238,6 +244,7 @@ def create(
     tests_jet: Optional[bool],
     tests_project: Optional[bool],
     project_version: Optional[str],
+    dry_run: bool,
 ):
     """Create a new Julia package"""
 
@@ -325,6 +332,22 @@ def create(
             tests_project=tests_project,
             project_version=project_version,
         )
+        if dry_run:
+            julia_code = generator.generate_julia_code(
+                package_name=package_name,
+                author=author,
+                user=user,
+                mail=mail,
+                output_dir=Path(output_dir),
+                config=config,
+            )
+            click.echo(
+                "\n=== DRY RUN: Julia Template function that would be executed ==="
+            )
+            click.echo(julia_code)
+            click.echo("=== END DRY RUN ===")
+            return
+
         package_dir = generator.create_package(
             package_name=package_name,
             author=author,
