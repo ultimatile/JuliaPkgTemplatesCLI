@@ -118,8 +118,7 @@ class TestCreateCommand:
             )
 
             assert result.exit_code == 0
-            assert "Creating Julia package: TestPackage" in result.output
-            assert "Package created successfully" in result.output
+            assert "Package 'TestPackage' created successfully" in result.output
             mock_instance.create_package.assert_called_once()
 
     def test_create_invalid_package_name_non_alpha_start(self, cli_runner):
@@ -184,8 +183,7 @@ class TestCreateCommand:
             )
 
             assert result.exit_code == 0
-            assert "Creating Julia package: TestPackage.jl" in result.output
-            assert "Package created successfully" in result.output
+            assert "Package 'TestPackage.jl' created successfully" in result.output
             mock_instance.create_package.assert_called_once()
 
     def test_create_invalid_jl_suffix_name(self, cli_runner):
