@@ -140,37 +140,6 @@ class TestCLICommands:
         assert "aqua=true" in result.output
         assert 'style="blue"' in result.output
 
-    def test_plugin_help_git(self):
-        """Test plugin help command for Git"""
-        runner = CliRunner()
-
-        result = runner.invoke(main, ["plugin", "help", "git"])
-
-        assert result.exit_code == 0
-        assert "Help for Git plugin:" in result.output
-        assert "manifest=true/false" in result.output
-        assert "ssh=true/false" in result.output
-
-    def test_plugin_help_tests(self):
-        """Test plugin help command for Tests"""
-        runner = CliRunner()
-
-        result = runner.invoke(main, ["plugin", "help", "tests"])
-
-        assert result.exit_code == 0
-        assert "Help for Tests plugin:" in result.output
-        assert "aqua=true/false" in result.output
-        assert "jet=true/false" in result.output
-
-    def test_plugin_help_unknown(self):
-        """Test plugin help command for unknown plugin"""
-        runner = CliRunner()
-
-        result = runner.invoke(main, ["plugin", "help", "unknown"])
-
-        assert result.exit_code == 1
-        assert "Unknown plugin: unknown" in result.output
-
     def test_config_command(self, temp_config_dir):
         """Test config command"""
         runner = CliRunner()

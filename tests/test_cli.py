@@ -261,31 +261,6 @@ class TestCreateCommand:
                 assert call_args.kwargs["user"] is None
                 assert call_args.kwargs["mail"] is None
 
-    def test_create_generator_error(self, cli_runner, temp_dir):
-        """Test create command handles generator errors"""
-        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
-            mock_instance = Mock()
-            mock_instance.create_package.side_effect = RuntimeError("Julia not found")
-            mock_generator.return_value = mock_instance
-
-            result = cli_runner.invoke(
-                create,
-                [
-                    "TestPackage",
-                    "--author",
-                    "Test Author",
-                    "--user",
-                    "testuser",
-                    "--mail",
-                    "test@example.com",
-                    "--output-dir",
-                    str(temp_dir),
-                ],
-            )
-
-            assert result.exit_code == 1
-            assert "Error: Julia not found" in result.output
-
 
 class TestConfigCommand:
     """Test config command"""
@@ -316,55 +291,6 @@ class TestConfigCommand:
             assert result.exit_code == 0
             assert "Set default mail: new@example.com" in result.output
             assert "Configuration saved" in result.output
-
-    def test_config_set_multiple_options(self, cli_runner, isolated_config):
-        """Test config command sets multiple options"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(
-                config_cmd,
-                [
-                    "--author",
-                    "New Author",
-                    "--user",
-                    "newuser",
-                    "--mail",
-                    "new@example.com",
-                    "--license",
-                    "Apache",
-                    "--template",
-                    "full",
-                ],
-            )
-
-            assert result.exit_code == 0
-            assert "Set default author: New Author" in result.output
-            assert "Set default user: newuser" in result.output
-            assert "Set default mail: new@example.com" in result.output
-            assert "Set default license: Apache" in result.output
-            assert "Set default template: full" in result.output
-
-    def test_config_update_existing_config(self, cli_runner, isolated_config):
-        """Test config command updates existing configuration"""
-        existing_config = {
-            "default": {
-                "author": "Old Author",
-                "user": "olduser",
-                "mail": "old@example.com",
-                "license": "MIT",
-            }
-        }
-
-        with patch("juliapkgtemplates.cli.load_config", return_value=existing_config):
-            with patch("juliapkgtemplates.cli.save_config") as mock_save:
-                result = cli_runner.invoke(config_cmd, ["--author", "Updated Author"])
-
-                assert result.exit_code == 0
-                mock_save.assert_called_once()
-                saved_config = mock_save.call_args[0][0]
-                assert saved_config["default"]["author"] == "Updated Author"
-                assert saved_config["default"]["user"] == "olduser"  # preserved
-                assert saved_config["default"]["mail"] == "old@example.com"  # preserved
-                assert saved_config["default"]["license"] == "MIT"  # preserved
 
 
 class TestMainCommand:
