@@ -4,19 +4,7 @@ on:
   push:
     branches:
       - main
-  pull_request:
-    branches:
-      - main
   workflow_dispatch:
-    inputs:
-      branch:
-        description: 'Branch to release from'
-        required: true
-        default: 'dev'
-        type: choice
-        options:
-        - dev
-        - main
 
 jobs:
   test:
@@ -63,9 +51,6 @@ jobs:
   release:
     needs: test
     runs-on: ubuntu-latest
-    if: |
-      (github.ref == 'refs/heads/main' && github.event_name == 'push') ||
-      (github.event_name == 'workflow_dispatch')
     concurrency: release
     permissions:
       id-token: write
@@ -90,12 +75,36 @@ jobs:
         run: |
           uv sync --group dev
 
-      - name: Create release with semantic-release
+      - name: Sync tags from dev and create release
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
-          # Run semantic-release to create version and tag
+          # Fetch all tags from dev branch
+          git fetch origin dev --tags
+          
+          # Find the latest tag that was created from dev branch
+          LATEST_TAG=$(git tag -l "v*" --sort=-version:refname | head -n1)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No version tags found, skipping release"
+            exit 0
+          fi
+          
+          echo "Latest tag found: $LATEST_TAG"
+          
+          # Update pyproject.toml version on main branch
+          CLEAN_VERSION=$(echo "$LATEST_TAG" | sed 's/^v//')
+          echo "Updating version to: $CLEAN_VERSION"
+          
+          sed -i "s/version = \".*\"/version = \"$CLEAN_VERSION\"/" pyproject.toml
+          
+          # Commit version update
+          git add pyproject.toml
+          git commit -m "chore: bump version to $CLEAN_VERSION"
+          git push origin main
+          
+          # Create GitHub release
           uv run semantic-release version
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
