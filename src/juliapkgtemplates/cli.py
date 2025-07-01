@@ -119,7 +119,7 @@ def get_mail_help() -> str:
 
 
 def parse_plugin_option_value(value_str: str):
-    """Parse plugin option value from string, handling basic type conversion"""
+    """Convert string values to appropriate Python types for Julia interop"""
     if value_str.lower() in ("true", "yes", "1"):
         return True
     elif value_str.lower() in ("false", "no", "0"):
@@ -137,12 +137,12 @@ def parse_plugin_option_value(value_str: str):
 
 
 def parse_multiple_key_value_pairs(option_string: str) -> dict:
-    """Parse multiple key=value pairs from a single string"""
+    """Extract configuration options from space-separated key=value format"""
     options = {}
     if not option_string:
         return options
 
-    # Split by spaces, but handle quoted values
+    # Preserve quoted strings containing spaces during tokenization
     parts = []
     current_part = ""
     in_quotes = False
@@ -167,7 +167,7 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
     if current_part.strip():
         parts.append(current_part.strip())
 
-    # Parse each key=value pair
+    # Convert string tokens to typed values
     for part in parts:
         if "=" in part:
             key, value = part.split("=", 1)
@@ -183,11 +183,11 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
 
 
 def parse_plugin_options_from_cli(**kwargs) -> dict:
-    """Parse plugin options from CLI arguments"""
+    """Transform CLI plugin arguments into structured configuration dict"""
     plugin_options = {}
 
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
-        # Check for both old format (--git-option) and new format (--gitoption)
+        # Support legacy and current CLI option formats for backward compatibility
         old_option_key = f"{plugin.lower()}_option"
         new_option_key = f"{plugin.lower()}option"
 
@@ -211,7 +211,7 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
 
 
 def create_dynamic_plugin_options(cmd):
-    """Add dynamic plugin options to command"""
+    """Programmatically register Click options for all known PkgTemplates.jl plugins"""
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
         # Add old format option (multiple occurrences)
         old_option_name = f"--{plugin.lower()}-option"
@@ -309,10 +309,12 @@ def create(
 ):
     """Create a new Julia package"""
 
+    # Strip .jl suffix for validation while preserving original name for generation
     name_to_check = package_name
     if package_name.endswith(".jl"):
         name_to_check = package_name[:-3]
 
+    # Enforce Julia package naming conventions
     if not name_to_check.replace("_", "").replace("-", "").isalnum():
         click.echo(
             "Error: Package name must contain only letters, numbers, hyphens, and underscores (optionally ending with .jl)",
@@ -324,14 +326,13 @@ def create(
         click.echo("Error: Package name must start with a letter", err=True)
         sys.exit(1)
 
-    # Load config and merge with CLI arguments
+    # Establish configuration precedence: CLI args > config file > built-in defaults
     config = load_config()
     defaults = config.get("default", {})
 
-    # Parse plugin options from CLI
     cli_plugin_options = parse_plugin_options_from_cli(**kwargs)
 
-    # Merge config and CLI arguments
+    # Build final configuration with proper precedence
     final_config = {}
     final_config["template"] = template or defaults.get("template", "standard")
     final_config["license_type"] = license or defaults.get("license_type")
@@ -339,11 +340,11 @@ def create(
 
     # Merge plugin options (CLI overrides config)
     config_plugin_options = defaults.copy()
-    # Remove non-plugin options from config
+    # Isolate plugin-specific configuration from general package settings
     for key in ["template", "license_type", "julia_version"]:
         config_plugin_options.pop(key, None)
 
-    # Convert config plugin options to proper format
+    # Transform dot-notation config keys (e.g., Git.manifest) into nested structure
     config_plugin_dict = {}
     for key, value in config_plugin_options.items():
         if "." in key:
@@ -352,7 +353,7 @@ def create(
                 config_plugin_dict[plugin_name] = {}
             config_plugin_dict[plugin_name][option_name] = value
 
-    # Merge CLI plugin options (CLI takes precedence)
+    # Apply CLI overrides to maintain precedence hierarchy
     for plugin, options in cli_plugin_options.items():
         if plugin not in config_plugin_dict:
             config_plugin_dict[plugin] = {}
@@ -367,7 +368,7 @@ def create(
     generator = JuliaPackageGenerator()
 
     if dry_run:
-        # Show what would be executed
+        # Preview Julia Template function without package creation side effects
         julia_code = generator.generate_julia_code(
             package_name, author, user, mail, Path(output_dir), package_config
         )

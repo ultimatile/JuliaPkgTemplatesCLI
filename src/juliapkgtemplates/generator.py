@@ -38,7 +38,7 @@ class PackageConfig:
         if config_dict is None:
             return cls()
 
-        # Extract plugin options from dot notation keys (e.g., "Git.manifest") or direct plugin_options key
+        # Handle mixed input formats: direct plugin_options dict and dot notation from config files
         plugin_options = {}
         regular_config = {}
 
@@ -56,7 +56,7 @@ class PackageConfig:
                 # This is a regular config option
                 regular_config[key] = value
 
-        # Filter out keys that don't exist as fields in the dataclass
+        # Ensure type safety by filtering to known dataclass fields
         valid_keys = {field.name for field in cls.__dataclass_fields__.values()}
         filtered_dict = {k: v for k, v in regular_config.items() if k in valid_keys}
 
@@ -143,13 +143,13 @@ class JuliaPackageGenerator:
         )
 
     def _map_license(self, license_name: str) -> str:
-        """Map user-friendly license name to PkgTemplates.jl identifier"""
+        """Convert CLI license names to PkgTemplates.jl format for interoperability"""
         mapped_license = self.LICENSE_MAPPING.get(license_name, license_name)
         if (
             mapped_license == license_name
             and license_name not in self.LICENSE_MAPPING.values()
         ):
-            # If no mapping found and it's not a valid PkgTemplates.jl license, warn
+            # Warn when license identifier may not be recognized by PkgTemplates.jl
             logging.warning(f"Unknown license '{license_name}', using as-is")
         return mapped_license
 
@@ -239,7 +239,7 @@ class JuliaPackageGenerator:
         license_type: Optional[str],
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        """Get PkgTemplates.jl plugins configuration using template-based approach"""
+        """Assemble Julia plugin configuration based on template choice and user overrides"""
         if template not in self.TEMPLATE_CONFIGS:
             raise ValueError(
                 f"Unknown template type: {template}. Available: {list(self.TEMPLATE_CONFIGS.keys())}"
@@ -248,7 +248,7 @@ class JuliaPackageGenerator:
         config = self.TEMPLATE_CONFIGS[template]
         plugins = []
 
-        # Build plugins based on template configuration and plugin options
+        # Map each plugin type to its configuration builder function
         plugin_builders = {
             "ProjectFile": lambda: self._build_project_file_plugin(plugin_options),
             "License": lambda: self._build_license_plugin(license_type, plugin_options),
@@ -265,7 +265,7 @@ class JuliaPackageGenerator:
         for plugin_name in config.plugins:
             if plugin_name in plugin_builders:
                 plugin = plugin_builders[plugin_name]()
-                if plugin:  # Only add non-None plugins
+                if plugin:  # Exclude disabled or invalid plugins
                     plugins.append(plugin)
 
         return {
@@ -275,8 +275,8 @@ class JuliaPackageGenerator:
     def _build_project_file_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> str:
-        """Build ProjectFile plugin configuration"""
-        version = "0.0.1"  # Default version
+        """Generate ProjectFile plugin with semantic versioning constraints"""
+        version = "0.0.1"  # Default follows semantic versioning convention
 
         # Get version from plugin options
         if plugin_options and "ProjectFile" in plugin_options:
@@ -291,7 +291,7 @@ class JuliaPackageGenerator:
         license_type: Optional[str],
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Optional[str]:
-        """Build License plugin configuration"""
+        """Create License plugin when license is specified, deferring to PkgTemplates.jl defaults otherwise"""
         if not license_type:
             return None
         mapped_license = self._map_license(license_type)
@@ -307,10 +307,10 @@ class JuliaPackageGenerator:
     def _build_git_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> str:
-        """Build Git plugin configuration"""
+        """Configure Git plugin with manifest handling and repository access method"""
         git_options = []
 
-        # Set defaults
+        # Configure default Git behavior for package development
         manifest = False
         ssh = False
         ignore_patterns = None
@@ -330,6 +330,7 @@ class JuliaPackageGenerator:
         if ssh:
             git_options.append("ssh=true")
         if ignore_patterns:
+            # Support both list and comma-separated string formats from config
             if isinstance(ignore_patterns, list):
                 patterns = [f'"{p}"' for p in ignore_patterns]
             else:
@@ -356,8 +357,8 @@ class JuliaPackageGenerator:
     def _build_tests_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> Optional[str]:
-        """Build Tests plugin configuration"""
-        # Set defaults
+        """Configure testing framework with optional static analysis tools"""
+        # Enable basic testing with optional quality assurance tools
         tests_aqua = False
         tests_jet = False
         tests_project = True
@@ -386,22 +387,19 @@ class JuliaPackageGenerator:
     def _build_github_actions_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> Optional[str]:
-        """Build GitHubActions plugin configuration"""
-        # GitHubActions plugin is enabled by template, no additional options needed
+        """Enable GitHub Actions CI/CD integration for automated testing and deployment"""
         return "GitHubActions()"
 
     def _build_codecov_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> Optional[str]:
-        """Build Codecov plugin configuration"""
-        # Codecov plugin is enabled by template, no additional options needed
+        """Enable Codecov integration for test coverage reporting"""
         return "Codecov()"
 
     def _build_documenter_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> Optional[str]:
-        """Build Documenter plugin configuration"""
-        # Documenter plugin is enabled by template, no additional options needed
+        """Configure Documenter.jl with GitHub Actions for automated documentation builds"""
         return "Documenter{GitHubActions}()"
 
     def _build_tagbot_plugin(
@@ -452,7 +450,7 @@ class JuliaPackageGenerator:
 
         # Add julia version if provided
         if julia_version:
-            # Handle julia version formatting - remove leading 'v' if present
+            # Normalize version format to ensure v-prefix compatibility with VersionNumber
             version_str = julia_version.lstrip("v")
             template_args.append(f'julia=v"{version_str}"')
 
@@ -482,7 +480,7 @@ class JuliaPackageGenerator:
         plugins: Dict[str, Any],
         julia_version: Optional[str] = None,
     ) -> Path:
-        """Call Julia script to generate package"""
+        """Execute PkgTemplates.jl package generation via subprocess interface"""
         julia_script = self.scripts_dir / "pkg_generator.jl"
 
         if not julia_script.exists():
@@ -525,7 +523,7 @@ class JuliaPackageGenerator:
                     error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
                 raise RuntimeError(error_msg) from e
             else:
-                # PkgTemplates.jl may output warnings to stderr but still succeed
+                # Handle case where Julia generates warnings but completes successfully
                 package_dir = output_dir / package_name
                 if package_dir.exists():
                     return package_dir
