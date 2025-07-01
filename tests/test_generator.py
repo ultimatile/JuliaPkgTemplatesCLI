@@ -27,16 +27,11 @@ class TestJuliaPackageGenerator:
         plugins = generator._get_plugins(
             template="minimal",
             license_type="MIT",
-            with_docs=True,
-            with_ci=True,
-            with_codecov=True,
-            formatter_style="nostyle",
-            ssh=False,
-            ignore_patterns=None,
-            tests_aqua=False,
-            tests_jet=False,
-            tests_project=True,
-            project_version=None,
+            plugin_options={
+                "Formatter": {"style": "nostyle"},
+                "Tests": {"project": True},
+                "Git": {"manifest": False},
+            },
         )
 
         expected_plugins = [
@@ -48,8 +43,6 @@ class TestJuliaPackageGenerator:
         ]
 
         assert plugins["plugins"] == expected_plugins
-        assert plugins["license_type"] == "MIT"
-        assert plugins["with_docs"] is True
 
     def test_get_plugins_standard(self):
         """Test plugin configuration for standard template"""
@@ -58,16 +51,11 @@ class TestJuliaPackageGenerator:
         plugins = generator._get_plugins(
             template="standard",
             license_type="Apache",
-            with_docs=True,
-            with_ci=True,
-            with_codecov=True,
-            formatter_style="sciml",
-            ssh=False,
-            ignore_patterns=None,
-            tests_aqua=False,
-            tests_jet=False,
-            tests_project=True,
-            project_version=None,
+            plugin_options={
+                "Formatter": {"style": "sciml"},
+                "Tests": {"project": True},
+                "Git": {"manifest": False},
+            },
         )
 
         expected_plugins = [
@@ -81,7 +69,6 @@ class TestJuliaPackageGenerator:
         ]
 
         assert plugins["plugins"] == expected_plugins
-        assert plugins["license_type"] == "Apache"
 
     def test_get_plugins_full(self):
         """Test plugin configuration for full template"""
@@ -90,16 +77,11 @@ class TestJuliaPackageGenerator:
         plugins = generator._get_plugins(
             template="full",
             license_type="BSD3",
-            with_docs=True,
-            with_ci=True,
-            with_codecov=True,
-            formatter_style="yas",
-            ssh=False,
-            ignore_patterns=None,
-            tests_aqua=False,
-            tests_jet=False,
-            tests_project=True,
-            project_version=None,
+            plugin_options={
+                "Formatter": {"style": "yas"},
+                "Tests": {"project": True},
+                "Git": {"manifest": False},
+            },
         )
 
         expected_plugins = [
@@ -344,10 +326,7 @@ class TestJuliaPackageGenerator:
             config=PackageConfig(
                 template="standard",
                 license_type="MIT",
-                with_docs=True,
-                with_ci=True,
-                with_codecov=True,
-                formatter_style="nostyle",
+                plugin_options={"Formatter": {"style": "nostyle"}},
             ),
         )
 
@@ -387,7 +366,9 @@ class TestJuliaPackageGenerator:
                     user="testuser",
                     mail="author@example.com",
                     output_dir=nonexistent_dir,
-                    config=PackageConfig(formatter_style="nostyle"),
+                    config=PackageConfig(
+                        plugin_options={"Formatter": {"style": "nostyle"}}
+                    ),
                 )
 
                 assert nonexistent_dir.exists()

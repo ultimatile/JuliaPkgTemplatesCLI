@@ -144,7 +144,7 @@ class TestCLICommands:
         """Test config command"""
         runner = CliRunner()
 
-        result = runner.invoke(main, ["config", "template", "minimal"])
+        result = runner.invoke(main, ["config", "--template", "minimal"])
 
         assert result.exit_code == 0
-        assert "Set template = minimal" in result.output
+        assert "Set default template: minimal" in result.output
