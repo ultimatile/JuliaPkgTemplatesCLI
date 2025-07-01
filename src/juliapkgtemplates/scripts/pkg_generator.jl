@@ -53,12 +53,16 @@ end
 function parse_git_plugin(plugin_str::AbstractString)
   git_params = Dict{Symbol,Any}()
 
-  if occursin("manifest=true", plugin_str)
-    git_params[:manifest] = true
+  # Parse manifest parameter (supports both true and false)
+  manifest_match = match(r"manifest=(true|false)", plugin_str)
+  if manifest_match !== nothing
+    git_params[:manifest] = manifest_match.captures[1] == "true"
   end
 
-  if occursin("ssh=true", plugin_str)
-    git_params[:ssh] = true
+  # Parse ssh parameter
+  ssh_match = match(r"ssh=(true|false)", plugin_str)
+  if ssh_match !== nothing
+    git_params[:ssh] = ssh_match.captures[1] == "true"
   end
 
   ignore_match = match(r"ignore=\[([^\]]+)\]", plugin_str)
