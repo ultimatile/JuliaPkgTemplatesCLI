@@ -18,7 +18,7 @@ jobs:
     if: github.event.pull_request.draft == false || github.event_name == 'workflow_dispatch'
     
     permissions:
-      contents: read
+      contents: write
       pull-requests: write
 
     steps:
@@ -69,12 +69,27 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
+      - name: Create version tag on dev branch
+        if: steps.get_version.outputs.has_version == 'true'
+        run: |
+          NEXT_VERSION=${{ steps.get_version.outputs.next_version }}
+          
+          # Create and push tag on dev branch
+          git tag "v$NEXT_VERSION"
+          git push origin "v$NEXT_VERSION"
+          
+          echo "Created tag v$NEXT_VERSION on dev branch"
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
       - name: Comment on PR
         if: steps.get_version.outputs.has_version == 'true'
         run: |
           PR_NUMBER=${{ github.event.pull_request.number || github.event.inputs.pr_number }}
           NEXT_VERSION=${{ steps.get_version.outputs.next_version }}
           
-          gh pr comment $PR_NUMBER --body "🔍 Next release version will be: **v$NEXT_VERSION**"
+          gh pr comment $PR_NUMBER --body "🔍 Next release version will be: **v$NEXT_VERSION**
+
+Tag \`v$NEXT_VERSION\` has been created on dev branch and will be synced to main after merge."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
