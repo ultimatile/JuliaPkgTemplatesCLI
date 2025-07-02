@@ -1,93 +1,67 @@
 # GitHub Actions Workflow Documentation
 
-This document describes the GitHub Actions workflows used in JuliaPkgTemplatesCLI for automated testing, release management, and deployment.
+This document describes the GitHub Actions workflows used in JuliaPkgTemplatesCLI for automated testing and release management.
 
 ## Workflow Overview
 
-The project uses a two-stage release workflow with Release Candidate (RC) promotion:
+The project uses a simple two-workflow release system:
 
 1. **Development Phase**: Features are developed on the `dev` branch
-2. **RC Creation**: When a PR is opened to `main`, RC tags are created for testing
-3. **Release Promotion**: When the PR is merged, the RC is promoted to a stable release
+2. **Pre-release Preparation**: When a PR is opened to `main`, the version is determined and a tag is created on the source branch
+3. **Release**: When the PR is merged to `main`, the tag is synced and a GitHub release is created
 
 ## Workflow Files
 
-### 1. `prerelease.yml` - Create RC Tag
-**Purpose**: Creates Release Candidate tags for testing before merging to main
+### 1. `prerelease.yml` - Prepare Release PR
+**Purpose**: Prepares release PRs by determining the next version and creating tags
 
 **Triggers**:
-- Pull requests opened or ready for review targeting `main` branch
+- Pull requests opened, ready for review, or synchronized targeting `main` branch
 - Manual dispatch with PR number input
 
 **Key Actions**:
-- Runs on `dev` branch commits
-- Uses semantic-release to create RC tags (e.g., `v0.1.0-rc.1`)
-- Comments on PR with the created RC tag
-- Enables testing of changes before final release
+- Uses semantic-release to determine the next version without creating releases
+- Updates PR title to include version (only for PRs with "release" in title)
+- Creates a version tag on the source branch
+- Comments on PR with version information
 
 **Conditions**:
 - Only runs on non-draft PRs
 - Requires fetch-depth: 0 for full git history
+- PR title update only occurs if PR title contains "release"
 
-### 2. `update-release-pr-title.yml` - Update Release PR Title
-**Purpose**: Automatically updates PR titles to include version information
+**Key Steps**:
+1. **Get Next Version**: Uses `semantic-release version --print` to determine version
+2. **Update PR Title**: Updates title to format `release: v{version}` if "release" is in current title
+3. **Create Tag**: Creates `v{version}` tag on the source branch and pushes it
+4. **Comment**: Adds comment with version information to the PR
 
-**Triggers**:
-- Pull requests opened or synchronized targeting `main` branch
-
-**Key Actions**:
-- Detects PRs with "release" in the title
-- Extracts version from latest RC tag
-- Updates PR title to format: "release: v{version}"
-
-**Conditions**:
-- Only runs if PR title contains "release"
-- Requires RC tags to exist for version extraction
-
-### 3. `release.yml` - Release
-**Purpose**: Main release workflow that handles both RC promotion and hotfix releases
+### 2. `release.yml` - Release
+**Purpose**: Main release workflow that handles testing and GitHub release creation
 
 **Triggers**:
 - Push to `main` branch
-- Pull requests targeting `main` (for testing)
-- Manual dispatch with branch selection
+- Manual dispatch
 
 **Key Components**:
 
 #### Test Job
-- Runs on Python 3.11 and 3.12
-- Sets up Julia 1.10 and installs PkgTemplates.jl
-- Executes pytest and pyright type checking
-- Required to pass before release job runs
+- **Matrix Strategy**: Runs on Python 3.11 and 3.12
+- **Julia Setup**: Sets up Julia 1.10 and installs PkgTemplates.jl
+- **Test Execution**: Runs pytest with verbose output
+- **Type Checking**: Executes pyright on src/juliapkgtemplates/
+- **Required**: Must pass before release job runs
 
 #### Release Job
-- **RC Promotion Strategy**: Promotes latest RC tag to stable release
-  - Finds latest RC tag (e.g., `v0.1.0-rc.2`)
-  - Creates stable tag (e.g., `v0.1.0`)
-  - Updates `pyproject.toml` version
-  - Creates GitHub release with generated notes
-  
-- **Semantic Release Fallback**: For hotfixes without RC tags
-  - Runs semantic-release for patch releases
-  - Handles direct commits to main branch
+- **Tag Synchronization**: Fetches tags from dev branch and finds latest version tag
+- **Version Update**: Updates `pyproject.toml` version to match the latest tag
+- **Release Creation**: Uses semantic-release to create GitHub release
+- **Commit**: Commits version update to main branch
 
 **Conditions**:
 - Release job only runs on push to main or manual dispatch
-- Strategy determined by presence of RC tags
-
-### 4. `sync-tags.yml` - Sync Tags
-**Purpose**: Ensures tag visibility across branches after releases
-
-**Triggers**:
-- Runs after successful completion of Release workflow
-
-**Key Actions**:
-- Fetches all tags from remote
-- Pushes tags to ensure availability for future dev branches
-- Post-release cleanup and synchronization
-
-**Conditions**:
-- Only runs if Release workflow completed successfully
+- Skips if no version tags are found
+- Uses concurrency control to prevent parallel releases
 
 ## Workflow Dependencies and Flow
 
@@ -95,17 +69,14 @@ The project uses a two-stage release workflow with Release Candidate (RC) promot
 graph TD
     A[Dev Branch Work] --> B[PR to Main]
     B --> C[prerelease.yml]
-    C --> D[RC Tag Created]
-    D --> E[update-release-pr-title.yml]
-    E --> F[PR Title Updated]
-    F --> G[PR Merged]
-    G --> H[release.yml]
-    H --> I{RC Tags Exist?}
-    I -->|Yes| J[Promote RC to Stable]
-    I -->|No| K[Semantic Release]
-    J --> L[sync-tags.yml]
-    K --> L
-    L --> M[Tags Synchronized]
+    C --> D[Version Tag Created on Source Branch]
+    D --> E[PR Title Updated]
+    E --> F[PR Merged to Main]
+    F --> G[release.yml - Test Job]
+    G --> H[release.yml - Release Job]
+    H --> I[Sync Tags from Dev]
+    I --> J[Update pyproject.toml Version]
+    J --> K[Create GitHub Release]
 ```
 
 ## Configuration Details
@@ -128,8 +99,6 @@ match = "main"
 
 [tool.semantic_release.branches.dev]
 match = "dev"
-prerelease = true
-prerelease_token = "rc"
 
 [tool.semantic_release.commit_parser_options]
 minor_tags = ["feat"]
@@ -140,62 +109,86 @@ exclude_commit_patterns = ["chore:", "ci:", "test:", "docs:", "style:"]
 ```
 
 ### Branch Strategy
-- **main**: Production branch, receives promoted releases
-- **dev**: Development branch, creates RC tags
-- RC tags format: `v{version}-rc.{number}` (e.g., `v0.1.0-rc.1`)
-- Stable tags format: `v{version}` (e.g., `v0.1.0`)
+- **main**: Production branch, receives releases
+- **dev**: Development branch, where version tags are initially created
+- Version tags format: `v{version}` (e.g., `v0.1.0`)
 
-## Release Types
+## Release Process
 
-### 1. Feature Releases (via RC Promotion)
+### 1. Normal Feature Releases
 1. Develop features on `dev` branch
-2. Open PR to `main` → triggers RC creation
-3. Test RC version
-4. Merge PR → promotes RC to stable release
+2. Open PR to `main` with "release" in the title → triggers version determination and tag creation
+3. Review and test the changes
+4. Merge PR → triggers release workflow that syncs tags and creates GitHub release
 
 ### 2. Hotfix Releases (Direct to Main)
-1. Make hotfix commit directly to `main`
-2. Release workflow uses semantic-release fallback
-3. Creates patch version automatically
+1. Make hotfix commit directly to `main` branch
+2. Release workflow will find the latest tag and create release
+3. Manual version tag creation may be needed for hotfixes
 
 ## Permissions
 
-All workflows use minimal required permissions:
-- `contents: write` - For creating tags and releases
+Workflows use these permissions:
+- `contents: write` - For creating tags, releases, and committing version updates
 - `pull-requests: write` - For updating PR titles and comments
 - `id-token: write` - For GitHub Actions authentication
 
+## Key Features
+
+### Version Management
+- **Automatic Version Detection**: Uses semantic-release to determine next version based on conventional commits
+- **Version Synchronization**: Automatically updates `pyproject.toml` version to match release tags
+- **Tag Strategy**: Creates version tags on source branch, then syncs to main during release
+
+### PR Management
+- **Title Updates**: Automatically updates PR titles to include version information
+- **Version Comments**: Adds informative comments to PRs with version details
+- **Draft Handling**: Skips processing for draft PRs
+
+### Testing Integration
+- **Multi-Python Testing**: Tests against Python 3.11 and 3.12
+- **Julia Integration**: Sets up Julia environment and installs PkgTemplates.jl
+- **Type Checking**: Runs pyright for static type analysis
+- **Release Gating**: Release only proceeds if all tests pass
+
 ## Error Handling
 
-- **RC Promotion**: Falls back to semantic-release if RC tag already promoted
-- **Tag Conflicts**: Checks for existing stable versions before promotion
+- **No Version Changes**: Workflow skips release if no version tags found
 - **Failed Tests**: Release job depends on test job success
+- **Tag Conflicts**: Uses latest tag for version synchronization
 - **Permission Issues**: Uses `secrets.GITHUB_TOKEN` with appropriate scopes
 
 ## Best Practices
 
-1. **Testing**: Always test RC versions before merging to main
-2. **Version Consistency**: Workflows automatically maintain version consistency in `pyproject.toml`
-3. **Release Notes**: Generated automatically from conventional commits
-4. **Tag Management**: RC tags are preserved for audit trail
-5. **Rollback**: Can manually create hotfix releases if needed
+1. **PR Titles**: Include "release" in PR titles to trigger title updates
+2. **Conventional Commits**: Use conventional commit format for automatic versioning
+3. **Testing**: All tests must pass before release
+4. **Version Consistency**: Workflows maintain consistency between tags and `pyproject.toml`
 
 ## Troubleshooting
 
 ### Common Issues
-1. **RC Creation Fails**: Check if `dev` branch has new commits since last RC
-2. **Release Skipped**: Verify PR title contains "release" for title updates
-3. **Version Mismatch**: Check `pyproject.toml` version against latest tags
-4. **Permission Denied**: Ensure `GITHUB_TOKEN` has required permissions
+1. **Version Not Determined**: Check if commits follow conventional commit format
+2. **PR Title Not Updated**: Ensure PR title contains "release"
+3. **Release Skipped**: Verify that version tags exist and are accessible
+4. **Test Failures**: Check test output and Julia dependency installation
 
 ### Debug Commands
 ```bash
-# Check tag sequence
-git tag --sort=version:refname
+# Check latest tags
+git tag --sort=version:refname | tail -5
 
-# Verify RC tags
-git tag -l "*-rc.*" --sort=-version:refname
-
-# Check version consistency
+# Verify version in pyproject.toml
 grep version pyproject.toml
+
+# Test semantic-release version detection
+uv run semantic-release version --print
 ```
+
+## PyPI Publishing
+
+PyPI publishing is currently disabled (`upload_to_pypi = false` in configuration). To enable:
+
+1. Uncomment the PyPI publishing steps in `release.yml`
+2. Set up PyPI credentials in repository secrets
+3. Update semantic-release configuration if needed
