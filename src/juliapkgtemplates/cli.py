@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from jinja2 import Environment, PackageLoader
 
 from .generator import JuliaPackageGenerator, PackageConfig
 
@@ -559,7 +560,7 @@ def completion(shell: str):
 
 
 def generate_fish_completion() -> str:
-    """Generate fish completion script for jtc command"""
+    """Generate fish completion script for jtc command using Jinja2 template"""
     # Get available plugins and licenses dynamically
     plugins = " ".join(JuliaPackageGenerator.KNOWN_PLUGINS)
     licenses = " ".join(JuliaPackageGenerator.LICENSE_MAPPING.keys())
@@ -590,8 +591,6 @@ def generate_fish_completion() -> str:
             f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {fish_option} -d "{plugin} plugin options (space-separated key=value pairs)"'
         )
 
-    plugin_options_str = "\n".join(plugin_options)
-
     # Generate config command plugin options
     config_plugin_options = []
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
@@ -605,58 +604,16 @@ def generate_fish_completion() -> str:
             f'complete -c jtc -n "__fish_seen_subcommand_from config" -l {fish_option} -d "Set default {plugin} plugin options (space-separated key=value pairs)"'
         )
 
-    config_plugin_options_str = "\n".join(config_plugin_options)
+    # Load and render template
+    env = Environment(loader=PackageLoader("juliapkgtemplates", "templates"))
+    template = env.get_template("fish_completion.j2")
 
-    completion_script = f'''# Fish completion for jtc (JuliaPkgTemplatesCLI)
-
-# Main command completions
-complete -c jtc -f
-
-# Subcommands
-complete -c jtc -n "__fish_use_subcommand" -a "create" -d "Create a new Julia package"
-complete -c jtc -n "__fish_use_subcommand" -a "config" -d "Configuration management"
-complete -c jtc -n "__fish_use_subcommand" -a "plugin-info" -d "Show information about plugins"
-complete -c jtc -n "__fish_use_subcommand" -a "completion" -d "Generate shell completion script"
-
-# Global options
-complete -c jtc -l help -d "Show help message"
-complete -c jtc -l version -d "Show version"
-
-# create command options
-complete -c jtc -n "__fish_seen_subcommand_from create" -s a -l author -d "Author name for the package"
-complete -c jtc -n "__fish_seen_subcommand_from create" -s u -l user -d "Git hosting username"
-complete -c jtc -n "__fish_seen_subcommand_from create" -s m -l mail -d "Email address for package metadata"
-complete -c jtc -n "__fish_seen_subcommand_from create" -s o -l output-dir -d "Output directory" -F
-complete -c jtc -n "__fish_seen_subcommand_from create" -s t -l template -d "Template type" -a "minimal standard full"
-complete -c jtc -n "__fish_seen_subcommand_from create" -l license -d "License type" -a "{licenses}"
-complete -c jtc -n "__fish_seen_subcommand_from create" -l julia-version -d "Julia version constraint (e.g., 1.10.9)"  
-complete -c jtc -n "__fish_seen_subcommand_from create" -l dry-run -d "Show what would be executed without running"
-
-# Plugin options for create command (dynamically generated)
-{plugin_options_str}
-
-# config command and subcommands (only when no config options are specified)
-complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template julia-version git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "show" -d "Display current configuration values"
-complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template julia-version git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "set" -d "Set configuration values"
-
-# config command options (for direct invocation and set subcommand)
-complete -c jtc -n "__fish_seen_subcommand_from config" -l author -d "Set default author"
-complete -c jtc -n "__fish_seen_subcommand_from config" -l user -d "Set default user"  
-complete -c jtc -n "__fish_seen_subcommand_from config" -l mail -d "Set default mail"
-complete -c jtc -n "__fish_seen_subcommand_from config" -l license -d "Set default license" -a "{licenses}"
-complete -c jtc -n "__fish_seen_subcommand_from config" -l template -d "Set default template" -a "minimal standard full"
-complete -c jtc -n "__fish_seen_subcommand_from config" -l julia-version -d "Set default Julia version constraint (e.g., 1.10.9)"
-
-# Plugin options for config command (dynamically generated)
-{config_plugin_options_str}
-
-# plugin-info command - complete with available plugin names (dynamically generated)
-complete -c jtc -n "__fish_seen_subcommand_from plugin-info" -a "{plugins}" -d "Plugin name"
-
-# completion command options  
-complete -c jtc -n "__fish_seen_subcommand_from completion" -l shell -d "Shell type" -a "fish"
-'''
-    return completion_script
+    return template.render(
+        plugins=plugins,
+        licenses=licenses,
+        plugin_options=plugin_options,
+        config_plugin_options=config_plugin_options,
+    )
 
 
 @main.group(invoke_without_command=True)
