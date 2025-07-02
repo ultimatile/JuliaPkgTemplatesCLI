@@ -1,15 +1,16 @@
 # JuliaPkgTemplatesCLI
 
 > [!WARNING]
-> This is an alpha version of JuliaPkgTemplatesCLI. The software is in early development and may contain bugs, incomplete features, or breaking changes. Use at your own risk and expect frequent updates.
+> This is a beta version of JuliaPkgTemplatesCLI. The software is in active development and may contain bugs or breaking changes. Use at your own risk and expect frequent updates.
 
 ## Overview
 
 JuliaPkgTemplatesCLI (`jtc`) is a command-line tool for generating Julia packages using PkgTemplates.jl with integrated mise task management. It streamlines the Julia package creation process by:
 
-- Generating Julia packages using PkgTemplates.jl templates.
-- Integrating with mise tasks for Pkg.jl related commands (e.g., `add`, `rm`, `instantiate`, etc.) to manage dependencies.
-- Providing configurable templates and settings with user defaults. See [Configuration](#configuration) for details.
+- Generating Julia packages using PkgTemplates.jl templates with comprehensive plugin support
+- Integrating with mise tasks for Pkg.jl related commands (e.g., `add`, `rm`, `instantiate`, etc.) to manage dependencies
+- Providing configurable templates and settings with user defaults and plugin-specific options
+- Supporting shell completion (currently fish shell) for improved developer experience
 
 ## Installation
 
@@ -21,13 +22,13 @@ Alternatively, you can install directly from the GitHub repository:
 # Install from the latest commit on main branch
 uv tool install git+https://github.com/ultimatile/JuliaPkgTemplatesCLI.git
 
-# Install from a specific release tag (once available)
-uv tool install git+https://github.com/ultimatile/JuliaPkgTemplatesCLI.git@v0.1.0
+# Install from a specific release tag
+uv tool install git+https://github.com/ultimatile/JuliaPkgTemplatesCLI.git@v0.2.0
 ```
 
 ### From Source
 
-Since this is an alpha release, the recommended installation method is from source:
+For development or testing the latest changes:
 
 ```bash
 git clone https://github.com/ultimatile/JuliaPkgTemplatesCLI.git
@@ -52,12 +53,28 @@ uv tool install .
 - pytest (testing)
 - pyright (type checking)
 
+## Shell Completion
+
+To enable shell completion for `jtc`, you can use the following command (`.config` directory can be changed based on your environment):
+
+For fish:
+
+```bash
+echo 'jtc completion | source' > ~/.config/fish/completions/jtc.fish
+```
+
+Currently, shell completion is only available for fish shell. Support for other shells (bash, zsh) will be added in future releases.
+
 ## Usage
 
-The primary command is `jtc create <package_name>`, which generates a new Julia package using PkgTemplates.jl.
-The other commands is `jtc config`, which allows you to set user defaults for package creation.
+JuliaPkgTemplatesCLI provides four main commands:
 
-Example usage:
+- `jtc create <package_name>`: Generate a new Julia package using PkgTemplates.jl
+- `jtc config`: Manage configuration settings with `show` and `set` subcommands
+- `jtc plugin-info [plugin_name]`: Display information about available plugins
+- `jtc completion`: Generate shell completion scripts
+
+### Basic Usage Examples
 
 ```bash
 # Show help
@@ -72,17 +89,37 @@ jtc create MyPackage --author "Your Name" --output-dir ~/projects
 # Create a package with specific template and license
 jtc create MyPackage --template full --license Apache
 
-# Create a package without documentation or CI
-jtc create MyPackage --no-docs --no-ci
+# Create a package with plugin-specific options
+jtc create MyPackage --formatter "style=blue margin=92" --documenter "logo=assets/logo.png"
 
-# Create a package with specific JuliaFormatter style
-jtc create MyPackage --formatter-style blue
-
-# Configure default settings (see Configuration section)
-jtc config --author "Your Name" --license MIT --template standard
+# Dry run to see what would be executed
+jtc create MyPackage --dry-run
 
 # Show current version
 jtc --version
+```
+
+### Configuration Management
+
+```bash
+# Show current configuration
+jtc config show # or jtc config
+
+# Set configuration values (set subcommand can be omitted)
+jtc config set --author "Your Name" --license MIT --template standard
+
+# Set plugin-specific defaults
+jtc config set --formatter "style=blue" --documenter "logo=assets/logo.png"
+```
+
+### Plugin Information
+
+```bash
+# List all available plugins
+jtc plugin-info
+
+# Show details for a specific plugin
+jtc plugin-info Formatter
 ```
 
 ## Configuration
@@ -93,19 +130,22 @@ jtc supports user-configurable defaults to streamline package creation. Configur
 
 ```bash
 # Set default author name
-jtc config --author "Your Name"
+jtc config set --author "Your Name"
 
 # Set default license
-jtc config --license Apache
+jtc config set --license Apache
 
 # Set default template type
-jtc config --template full
+jtc config set --template full
 
-# Set default formatter style
-jtc config --formatter-style blue
+# Set plugin-specific defaults
+jtc config set --formatter "style=blue margin=92"
 
 # Set multiple defaults at once
-jtc config --author "Your Name" --license MIT --template standard --formatter-style sciml
+jtc config set --author "Your Name" --license MIT --template standard --formatter "style=sciml"
+
+# View current configuration
+jtc config show
 ```
 
 ### Configuration File Format
@@ -115,9 +155,13 @@ The configuration file uses TOML format:
 ```toml
 [default]
 author = "Your Name"
+user = "github_username"
+mail = "your.email@example.com"
 license = "MIT"
 template = "standard"
-formatter_style = "nostyle"
+
+[default.formatter]
+style = "blue"
 ```
 
 ### Configuration Precedence
@@ -130,10 +174,29 @@ For example, if you have `author = "Config Author"` in your config file but run 
 
 ### Available Options
 
+#### Core Options
+
 - **author**: Default author name for packages
+- **user**: Git hosting username for repository URLs and CI
+- **mail**: Email address for package metadata
 - **license**: Default license type (`MIT`, `Apache`, `BSD2`, `BSD3`, `GPL2`, `GPL3`, `MPL`, `ISC`, `LGPL2`, `LGPL3`, `AGPL3`, `EUPL`)
 - **template**: Default template type (`minimal`, `standard`, `full`)
-- **formatter_style**: Default JuliaFormatter style (`nostyle`, `sciml`, `blue`, `yas`)
+
+#### Plugin Options
+
+All PkgTemplates.jl plugins are supported with their respective options:
+
+- **CompatHelper**: Automated dependency updates
+- **TagBot**: Automated GitHub releases
+- **Documenter**: Documentation generation and deployment
+- **Codecov**: Code coverage reporting
+- **GitHubActions**: CI/CD workflows
+- **ProjectFile**: Package metadata management
+- **Formatter**: Code formatting with JuliaFormatter
+- **Tests**: Testing framework setup
+- **Git**: Git repository initialization
+
+Use `jtc plugin-info [plugin_name]` to see available options for each plugin.
 
 ### Configuration Location
 
@@ -141,12 +204,13 @@ Configuration files are stored in `~/.config/jtc/config.toml` following XDG Base
 
 If `XDG_CONFIG_HOME` environment variable is set, that location will be used instead.
 
-## Alpha Release Notes
+## Beta Release Notes
 
-- This alpha version focuses on core package generation functionality
-- Some advanced features may not be fully implemented
-- Configuration options are subject to change
-- Documentation and examples are still being developed
+- This beta version includes comprehensive plugin support and enhanced configuration management
+- All major PkgTemplates.jl plugins are supported with full configuration options
+- Shell completion is available for fish shell
+- Enhanced CLI with subcommands for better user experience
+- Configuration system supports both core settings and plugin-specific options
 - Please report issues on the GitHub repository
 
 ## Development
@@ -183,4 +247,6 @@ uv tool install .
 
 ## Release
 
-Create PR with title containing "release". GitHub Actions will automatically update the title to "release: v{version}".
+The project uses semantic versioning with automated GitHub releases. For detailed CI/CD workflow information, see [`docs/workflow.md`](docs/workflow.md).
+
+**For maintainers**: Create PR with title containing "release". GitHub Actions will automatically update the title to "release: v{version}" and handle the release process.
