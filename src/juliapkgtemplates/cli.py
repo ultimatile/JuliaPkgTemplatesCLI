@@ -332,7 +332,7 @@ def main():
 )
 @click.option(
     "--julia-version",
-    help='Julia version constraint (e.g., v"1.10.9") for Template constructor',
+    help='Julia version constraint (e.g., "1.10.9") for Template constructor',
 )
 @click.option(
     "--dry-run",
@@ -629,15 +629,15 @@ complete -c jtc -n "__fish_seen_subcommand_from create" -s m -l mail -d "Email a
 complete -c jtc -n "__fish_seen_subcommand_from create" -s o -l output-dir -d "Output directory" -F
 complete -c jtc -n "__fish_seen_subcommand_from create" -s t -l template -d "Template type" -a "minimal standard full"
 complete -c jtc -n "__fish_seen_subcommand_from create" -l license -d "License type" -a "{licenses}"
-complete -c jtc -n "__fish_seen_subcommand_from create" -l julia-version -d "Julia version constraint"  
+complete -c jtc -n "__fish_seen_subcommand_from create" -l julia-version -d "Julia version constraint (e.g., 1.10.9)"  
 complete -c jtc -n "__fish_seen_subcommand_from create" -l dry-run -d "Show what would be executed without running"
 
 # Plugin options for create command (dynamically generated)
 {plugin_options_str}
 
 # config command and subcommands (only when no config options are specified)
-complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "show" -d "Display current configuration values"
-complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "set" -d "Set configuration values"
+complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template julia-version git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "show" -d "Display current configuration values"
+complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template julia-version git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "set" -d "Set configuration values"
 
 # config command options (for direct invocation and set subcommand)
 complete -c jtc -n "__fish_seen_subcommand_from config" -l author -d "Set default author"
@@ -645,6 +645,7 @@ complete -c jtc -n "__fish_seen_subcommand_from config" -l user -d "Set default 
 complete -c jtc -n "__fish_seen_subcommand_from config" -l mail -d "Set default mail"
 complete -c jtc -n "__fish_seen_subcommand_from config" -l license -d "Set default license" -a "{licenses}"
 complete -c jtc -n "__fish_seen_subcommand_from config" -l template -d "Set default template" -a "minimal standard full"
+complete -c jtc -n "__fish_seen_subcommand_from config" -l julia-version -d "Set default Julia version constraint (e.g., 1.10.9)"
 
 # Plugin options for config command (dynamically generated)
 {config_plugin_options_str}
@@ -664,6 +665,9 @@ complete -c jtc -n "__fish_seen_subcommand_from completion" -l shell -d "Shell t
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
 @click.option("--template", help="Set default template")
+@click.option(
+    "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
+)
 @create_dynamic_plugin_options
 @click.pass_context
 def config(
@@ -673,6 +677,7 @@ def config(
     mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
+    julia_version: Optional[str],
     **kwargs,
 ):
     """Configuration management"""
@@ -685,6 +690,7 @@ def config(
                 mail is not None,
                 license is not None,
                 template is not None,
+                julia_version is not None,
             ]
         )
 
@@ -694,7 +700,7 @@ def config(
 
         if has_config_options or has_plugin_options:
             # Options provided, delegate to set functionality
-            _set_config(author, user, mail, license, template, **kwargs)
+            _set_config(author, user, mail, license, template, julia_version, **kwargs)
         else:
             # No options provided, show config as default
             _show_config()
@@ -715,7 +721,14 @@ def _show_config():
         return
 
     # Display basic configuration
-    basic_config_keys = {"author", "user", "mail", "license_type", "template"}
+    basic_config_keys = {
+        "author",
+        "user",
+        "mail",
+        "license_type",
+        "template",
+        "julia_version",
+    }
     basic_config = {}
     plugin_config = {}
 
@@ -746,6 +759,7 @@ def _set_config(
     mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
+    julia_version: Optional[str],
     **kwargs,
 ):
     """Set configuration values (shared logic)"""
@@ -778,6 +792,10 @@ def _set_config(
         config_data["default"]["template"] = template
         click.echo(f"Set default template: {template}")
         updated = True
+    if julia_version is not None:
+        config_data["default"]["julia_version"] = julia_version
+        click.echo(f"Set default julia_version: {julia_version}")
+        updated = True
 
     # Process plugin options - save in nested structure
     for plugin_name, options in plugin_options.items():
@@ -807,6 +825,9 @@ def show():
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
 @click.option("--template", help="Set default template")
+@click.option(
+    "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
+)
 @create_dynamic_plugin_options
 def set(
     author: Optional[str],
@@ -814,10 +835,11 @@ def set(
     mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
+    julia_version: Optional[str],
     **kwargs,
 ):
     """Set configuration values"""
-    _set_config(author, user, mail, license, template, **kwargs)
+    _set_config(author, user, mail, license, template, julia_version, **kwargs)
 
 
 if __name__ == "__main__":
