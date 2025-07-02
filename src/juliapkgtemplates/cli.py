@@ -185,52 +185,55 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
 def parse_plugin_options_from_cli(**kwargs) -> dict:
     """Transform CLI plugin arguments into structured configuration dict"""
     plugin_options = {}
+    
+    option_to_plugin = {
+        "git": "Git",
+        "tests": "Tests", 
+        "formatter": "Formatter",
+        "project_file": "ProjectFile",
+        "github_actions": "GitHubActions",
+        "codecov": "Codecov",
+        "documenter": "Documenter",
+        "tagbot": "TagBot",
+        "compat_helper": "CompatHelper",
+    }
 
-    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
-        # Support legacy and current CLI option formats for backward compatibility
-        old_option_key = f"{plugin.lower()}_option"
-        new_option_key = f"{plugin.lower()}option"
-
-        # Handle old format (multiple occurrences)
-        if old_option_key in kwargs and kwargs[old_option_key]:
-            plugin_options[plugin] = {}
-            for option_pair in kwargs[old_option_key]:
-                if "=" in option_pair:
-                    key, value = option_pair.split("=", 1)
-                    plugin_options[plugin][key.strip()] = parse_plugin_option_value(
-                        value.strip()
-                    )
-
-        # Handle new format (single string with multiple key=value pairs)
-        elif new_option_key in kwargs and kwargs[new_option_key]:
-            options = parse_multiple_key_value_pairs(kwargs[new_option_key])
+    for option_key, plugin_name in option_to_plugin.items():
+        # Handle single string with multiple key=value pairs
+        if option_key in kwargs and kwargs[option_key]:
+            options = parse_multiple_key_value_pairs(kwargs[option_key])
             if options:
-                plugin_options[plugin] = options
+                plugin_options[plugin_name] = options
 
     return plugin_options
 
 
 def create_dynamic_plugin_options(cmd):
     """Programmatically register Click options for all known PkgTemplates.jl plugins"""
+    
+    plugin_option_names = {
+        "Git": "--git",
+        "Tests": "--tests",
+        "Formatter": "--formatter",
+        "ProjectFile": "--project-file",
+        "GitHubActions": "--github-actions",
+        "Codecov": "--codecov",
+        "Documenter": "--documenter",
+        "TagBot": "--tagbot",
+        "CompatHelper": "--compat-helper",
+    }
+    
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
-        # Add old format option (multiple occurrences)
-        old_option_name = f"--{plugin.lower()}-option"
-        old_help_text = (
-            f"Set {plugin} plugin options as key=value pairs (e.g., manifest=false)"
-        )
+        if plugin == "License":
+            continue
+            
+        option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
+        help_text = f"Set {plugin} plugin options as space-separated key=value pairs (e.g., 'manifest=false ssh=true')"
 
-        # Add new format option (single string with multiple pairs)
-        new_option_name = f"--{plugin.lower()}option"
-        new_help_text = f"Set {plugin} plugin options as space-separated key=value pairs (e.g., 'manifest=false ssh=true')"
+        def add_option(plugin_name=plugin, opt_name=option_name):
+            return click.option(opt_name, help=help_text)
 
-        def add_old_option(plugin_name=plugin):
-            return click.option(old_option_name, multiple=True, help=old_help_text)
-
-        def add_new_option(plugin_name=plugin):
-            return click.option(new_option_name, help=new_help_text)
-
-        cmd = add_old_option()(cmd)
-        cmd = add_new_option()(cmd)
+        cmd = add_option()(cmd)
 
     return cmd
 
@@ -411,18 +414,23 @@ def plugin_info(plugin_name: Optional[str]):
         click.echo("Example: jtc plugin-info Git")
         return
 
-    plugin_name_title = plugin_name.title()
+    # Find matching plugin name (case-insensitive search)
+    plugin_name_matched = None
+    for known_plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+        if known_plugin.lower() == plugin_name.lower():
+            plugin_name_matched = known_plugin
+            break
 
-    if plugin_name_title not in JuliaPackageGenerator.KNOWN_PLUGINS:
+    if plugin_name_matched is None:
         available = ", ".join(JuliaPackageGenerator.KNOWN_PLUGINS)
         click.echo(f"Unknown plugin: {plugin_name}")
         click.echo(f"Available plugins: {available}")
         sys.exit(1)
 
-    click.echo(f"Help for {plugin_name_title} plugin:")
+    click.echo(f"Help for {plugin_name_matched} plugin:")
     click.echo("=" * 40)
 
-    if plugin_name_title == "Git":
+    if plugin_name_matched == "Git":
         click.echo("Options:")
         click.echo(
             "  manifest=true/false  - Include/exclude Manifest.toml (default: false)"
@@ -433,10 +441,10 @@ def plugin_info(plugin_name: Optional[str]):
         click.echo("  ignore=[pattern,...]  - Git ignore patterns (default: none)")
         click.echo("\nExample:")
         click.echo(
-            "  jtc create MyPkg --git-option manifest=false --git-option ssh=true"
+            "  jtc create MyPkg --git 'manifest=false ssh=true'"
         )
 
-    elif plugin_name_title == "Tests":
+    elif plugin_name_matched == "Tests":
         click.echo("Options:")
         click.echo(
             "  project=true/false   - Separate project for tests (default: true)"
@@ -445,24 +453,24 @@ def plugin_info(plugin_name: Optional[str]):
         click.echo("  jet=true/false       - Enable JET.jl testing (default: false)")
         click.echo("\nExample:")
         click.echo(
-            "  jtc create MyPkg --tests-option aqua=true --tests-option jet=true"
+            "  jtc create MyPkg --tests 'aqua=true jet=true'"
         )
 
-    elif plugin_name_title == "Formatter":
+    elif plugin_name_matched == "Formatter":
         click.echo("Options:")
         click.echo(
             "  style=nostyle/blue/sciml/yas  - JuliaFormatter style (default: nostyle)"
         )
         click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --formatter-option style=blue")
+        click.echo("  jtc create MyPkg --formatter style=blue")
 
-    elif plugin_name_title == "ProjectFile":
+    elif plugin_name_matched == "ProjectFile":
         click.echo("Options:")
         click.echo("  version=x.y.z        - Initial package version (default: 0.0.1)")
         click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --projectfile-option version=1.0.0")
+        click.echo("  jtc create MyPkg --project-file version=1.0.0")
 
-    elif plugin_name_title == "License":
+    elif plugin_name_matched == "License":
         click.echo("Options:")
         click.echo("  name=license_name    - License identifier")
         click.echo("\nExample:")
@@ -472,7 +480,7 @@ def plugin_info(plugin_name: Optional[str]):
         )
 
     else:
-        click.echo(f"No specific help available for {plugin_name_title} plugin.")
+        click.echo(f"No specific help available for {plugin_name_matched} plugin.")
         click.echo("This plugin typically has no configurable options.")
 
 
