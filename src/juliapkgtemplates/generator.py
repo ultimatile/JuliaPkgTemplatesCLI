@@ -177,7 +177,13 @@ class JuliaPackageGenerator:
         Returns:
             Path to the created package directory
         """
-        output_dir = Path(output_dir).resolve()
+        # Handle output directory path resolution
+        output_dir = Path(output_dir)
+        if not output_dir.is_absolute():
+            # For relative paths, resolve them relative to current working directory
+            output_dir = Path.cwd() / output_dir
+        output_dir = output_dir.resolve()
+
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
 
@@ -228,6 +234,13 @@ class JuliaPackageGenerator:
         Returns:
             String containing the Julia Template function code
         """
+        # Handle output directory path resolution
+        output_dir = Path(output_dir)
+        if not output_dir.is_absolute():
+            # For relative paths, resolve them relative to current working directory
+            output_dir = Path.cwd() / output_dir
+        output_dir = output_dir.resolve()
+
         # Use provided config or create default
         cfg = config if config is not None else PackageConfig()
 

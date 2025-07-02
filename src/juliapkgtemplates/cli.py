@@ -314,7 +314,6 @@ def main():
     "--output-dir",
     "-o",
     type=click.Path(),
-    default=".",
     help="Output directory (default: current directory)",
 )
 @click.option(
@@ -356,7 +355,7 @@ def create(
     author: Optional[str],
     user: Optional[str],
     mail: Optional[str],
-    output_dir: str,
+    output_dir: Optional[str],
     template: Optional[str],
     license: Optional[str],
     julia_version: Optional[str],
@@ -395,6 +394,7 @@ def create(
     final_author = author or defaults.get("author")
     final_user = user or defaults.get("user")
     final_mail = mail or defaults.get("mail")
+    final_output_dir = output_dir or defaults.get("output_dir", ".")
 
     # Display configuration being used
     click.echo(f"Author: {final_author}")
@@ -445,7 +445,7 @@ def create(
             final_author,
             final_user,
             final_mail,
-            Path(output_dir),
+            Path(final_output_dir),
             package_config,
         )
         click.echo("Would execute the following Julia code:")
@@ -460,7 +460,7 @@ def create(
             final_author,
             final_user,
             final_mail,
-            Path(output_dir),
+            Path(final_output_dir),
             package_config,
             verbose=verbose,
         )
