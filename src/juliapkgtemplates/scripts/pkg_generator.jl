@@ -148,7 +148,45 @@ function parse_plugins(plugins_str::AbstractString)
   init_plugin_parsers()
 
   plugins_str = strip(plugins_str, ['[', ']'])
-  plugin_strs = split(plugins_str, ',')
+  
+  # Smart splitting that respects parentheses and brackets
+  plugin_strs = []
+  current_plugin = ""
+  paren_depth = 0
+  bracket_depth = 0
+  in_quotes = false
+  quote_char = '\0'
+  
+  for char in plugins_str
+    if !in_quotes && (char == '"' || char == '\'')
+      in_quotes = true
+      quote_char = char
+    elseif in_quotes && char == quote_char
+      in_quotes = false
+      quote_char = '\0'
+    elseif !in_quotes
+      if char == '('
+        paren_depth += 1
+      elseif char == ')'
+        paren_depth -= 1
+      elseif char == '['
+        bracket_depth += 1
+      elseif char == ']'
+        bracket_depth -= 1
+      elseif char == ',' && paren_depth == 0 && bracket_depth == 0
+        # This is a top-level comma, split here
+        push!(plugin_strs, strip(current_plugin))
+        current_plugin = ""
+        continue
+      end
+    end
+    current_plugin *= char
+  end
+  
+  # Add the last plugin
+  if !isempty(strip(current_plugin))
+    push!(plugin_strs, strip(current_plugin))
+  end
 
   plugins = []
   for plugin_str in plugin_strs
