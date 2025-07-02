@@ -48,10 +48,10 @@ def flatten_config_for_backward_compatibility(config: dict) -> dict:
     """Convert nested config structure to flat dot-notation for backward compatibility"""
     if "default" not in config:
         return config
-    
+
     defaults = config["default"].copy()
     flattened_defaults = {}
-    
+
     for key, value in defaults.items():
         if isinstance(value, dict):
             # This is a plugin section, flatten it
@@ -60,7 +60,7 @@ def flatten_config_for_backward_compatibility(config: dict) -> dict:
         else:
             # This is a basic config value
             flattened_defaults[key] = value
-    
+
     return {"default": flattened_defaults}
 
 
@@ -76,11 +76,11 @@ def save_config(config: dict) -> None:
         # Fallback to manual TOML writing if tomli_w is not available
         content = ""
         defaults = config.get("default", {})
-        
+
         # Write basic config values first
         basic_values = {}
         plugin_values = {}
-        
+
         for key, value in defaults.items():
             if "." in key:
                 plugin_name, option_name = key.split(".", 1)
@@ -89,19 +89,19 @@ def save_config(config: dict) -> None:
                 plugin_values[plugin_name][option_name] = value
             else:
                 basic_values[key] = value
-        
+
         if basic_values or plugin_values:
             content += "[default]\n"
             for key, value in basic_values.items():
                 if isinstance(value, str):
                     content += f'{key} = "{value}"\n'
                 elif isinstance(value, bool):
-                    content += f'{key} = {str(value).lower()}\n'
+                    content += f"{key} = {str(value).lower()}\n"
                 elif isinstance(value, (int, float)):
-                    content += f'{key} = {value}\n'
+                    content += f"{key} = {value}\n"
                 elif isinstance(value, list):
-                    content += f'{key} = {value}\n'
-            
+                    content += f"{key} = {value}\n"
+
             # Write plugin sections
             for plugin_name, options in plugin_values.items():
                 content += f"\n[default.{plugin_name}]\n"
@@ -109,12 +109,12 @@ def save_config(config: dict) -> None:
                     if isinstance(option_value, str):
                         content += f'{option_key} = "{option_value}"\n'
                     elif isinstance(option_value, bool):
-                        content += f'{option_key} = {str(option_value).lower()}\n'
+                        content += f"{option_key} = {str(option_value).lower()}\n"
                     elif isinstance(option_value, (int, float)):
-                        content += f'{option_key} = {option_value}\n'
+                        content += f"{option_key} = {option_value}\n"
                     elif isinstance(option_value, list):
-                        content += f'{option_key} = {option_value}\n'
-        
+                        content += f"{option_key} = {option_value}\n"
+
         with open(config_path, "w") as f:
             f.write(content)
     except Exception as e:
@@ -244,10 +244,10 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
 def parse_plugin_options_from_cli(**kwargs) -> dict:
     """Transform CLI plugin arguments into structured configuration dict"""
     plugin_options = {}
-    
+
     option_to_plugin = {
         "git": "Git",
-        "tests": "Tests", 
+        "tests": "Tests",
         "formatter": "Formatter",
         "project_file": "ProjectFile",
         "github_actions": "GitHubActions",
@@ -269,7 +269,7 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
 
 def create_dynamic_plugin_options(cmd):
     """Programmatically register Click options for all known PkgTemplates.jl plugins"""
-    
+
     plugin_option_names = {
         "Git": "--git",
         "Tests": "--tests",
@@ -281,11 +281,11 @@ def create_dynamic_plugin_options(cmd):
         "TagBot": "--tagbot",
         "CompatHelper": "--compat-helper",
     }
-    
+
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
         if plugin == "License":
             continue
-            
+
         option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
         help_text = f"Set {plugin} plugin options as space-separated key=value pairs (e.g., 'manifest=false ssh=true')"
 
@@ -501,9 +501,7 @@ def plugin_info(plugin_name: Optional[str]):
         )
         click.echo("  ignore=[pattern,...]  - Git ignore patterns (default: none)")
         click.echo("\nExample:")
-        click.echo(
-            "  jtc create MyPkg --git 'manifest=false ssh=true'"
-        )
+        click.echo("  jtc create MyPkg --git 'manifest=false ssh=true'")
 
     elif plugin_name_matched == "Tests":
         click.echo("Options:")
@@ -513,9 +511,7 @@ def plugin_info(plugin_name: Optional[str]):
         click.echo("  aqua=true/false      - Enable Aqua.jl testing (default: false)")
         click.echo("  jet=true/false       - Enable JET.jl testing (default: false)")
         click.echo("\nExample:")
-        click.echo(
-            "  jtc create MyPkg --tests 'aqua=true jet=true'"
-        )
+        click.echo("  jtc create MyPkg --tests 'aqua=true jet=true'")
 
     elif plugin_name_matched == "Formatter":
         click.echo("Options:")
@@ -545,6 +541,103 @@ def plugin_info(plugin_name: Optional[str]):
         click.echo("This plugin typically has no configurable options.")
 
 
+@main.command()
+@click.option(
+    "--shell",
+    type=click.Choice(["fish"]),
+    default="fish",
+    help="Shell type (currently only fish is supported)",
+)
+def completion(shell: str):
+    """Generate shell completion script"""
+    if shell == "fish":
+        fish_completion = generate_fish_completion()
+        click.echo(fish_completion)
+    else:
+        click.echo(f"Completion for {shell} is not yet supported", err=True)
+        sys.exit(1)
+
+
+def generate_fish_completion() -> str:
+    """Generate fish completion script for jtc command"""
+    # Get available plugins and licenses dynamically
+    plugins = " ".join(JuliaPackageGenerator.KNOWN_PLUGINS)
+    licenses = " ".join(JuliaPackageGenerator.LICENSE_MAPPING.keys())
+
+    # Generate plugin options dynamically based on current CLI structure
+    plugin_options = []
+
+    plugin_option_names = {
+        "Git": "--git",
+        "Tests": "--tests",
+        "Formatter": "--formatter",
+        "ProjectFile": "--project-file",
+        "GitHubActions": "--github-actions",
+        "Codecov": "--codecov",
+        "Documenter": "--documenter",
+        "TagBot": "--tagbot",
+        "CompatHelper": "--compat-helper",
+    }
+
+    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+        if plugin == "License":
+            continue  # License is handled separately
+
+        option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
+        plugin_options.append(
+            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {option_name[2:]} -d "{plugin} plugin options (space-separated key=value pairs)"'
+        )
+
+    plugin_options_str = "\n".join(plugin_options)
+
+    completion_script = f'''# Fish completion for jtc (JuliaPkgTemplatesCLI)
+
+# Main command completions
+complete -c jtc -f
+
+# Subcommands
+complete -c jtc -n "__fish_use_subcommand" -a "create" -d "Create a new Julia package"
+complete -c jtc -n "__fish_use_subcommand" -a "config" -d "Configuration management"
+complete -c jtc -n "__fish_use_subcommand" -a "plugin-info" -d "Show information about plugins"
+complete -c jtc -n "__fish_use_subcommand" -a "completion" -d "Generate shell completion script"
+
+# Global options
+complete -c jtc -l help -d "Show help message"
+complete -c jtc -l version -d "Show version"
+
+# create command options
+complete -c jtc -n "__fish_seen_subcommand_from create" -s a -l author -d "Author name for the package"
+complete -c jtc -n "__fish_seen_subcommand_from create" -s u -l user -d "Git hosting username"
+complete -c jtc -n "__fish_seen_subcommand_from create" -s m -l mail -d "Email address for package metadata"
+complete -c jtc -n "__fish_seen_subcommand_from create" -s o -l output-dir -d "Output directory" -F
+complete -c jtc -n "__fish_seen_subcommand_from create" -s t -l template -d "Template type" -a "minimal standard full"
+complete -c jtc -n "__fish_seen_subcommand_from create" -l license -d "License type" -a "{licenses}"
+complete -c jtc -n "__fish_seen_subcommand_from create" -l julia-version -d "Julia version constraint"  
+complete -c jtc -n "__fish_seen_subcommand_from create" -l dry-run -d "Show what would be executed without running"
+
+# Plugin options for create command (dynamically generated)
+{plugin_options_str}
+
+# config command and subcommands
+complete -c jtc -n "__fish_seen_subcommand_from config" -a "show" -d "Display current configuration values"
+complete -c jtc -n "__fish_seen_subcommand_from config" -a "set" -d "Set configuration values"
+
+# config command options (for direct invocation and set subcommand)
+complete -c jtc -n "__fish_seen_subcommand_from config" -l author -d "Set default author"
+complete -c jtc -n "__fish_seen_subcommand_from config" -l user -d "Set default user"  
+complete -c jtc -n "__fish_seen_subcommand_from config" -l mail -d "Set default mail"
+complete -c jtc -n "__fish_seen_subcommand_from config" -l license -d "Set default license" -a "{licenses}"
+complete -c jtc -n "__fish_seen_subcommand_from config" -l template -d "Set default template" -a "minimal standard full"
+
+# plugin-info command - complete with available plugin names (dynamically generated)
+complete -c jtc -n "__fish_seen_subcommand_from plugin-info" -a "{plugins}" -d "Plugin name"
+
+# completion command options  
+complete -c jtc -n "__fish_seen_subcommand_from completion" -l shell -d "Shell type" -a "fish"
+'''
+    return completion_script
+
+
 @main.group(invoke_without_command=True)
 @click.option("--author", help="Set default author")
 @click.option("--user", help="Set default user")
@@ -556,27 +649,29 @@ def plugin_info(plugin_name: Optional[str]):
 def config(
     ctx,
     author: Optional[str],
-    user: Optional[str], 
+    user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
-    **kwargs
+    **kwargs,
 ):
     """Configuration management"""
     if ctx.invoked_subcommand is None:
         # Check if any configuration options are provided
-        has_config_options = any([
-            author is not None,
-            user is not None,
-            mail is not None,
-            license is not None,
-            template is not None,
-        ])
-        
+        has_config_options = any(
+            [
+                author is not None,
+                user is not None,
+                mail is not None,
+                license is not None,
+                template is not None,
+            ]
+        )
+
         # Check if any plugin options are provided
         plugin_options = parse_plugin_options_from_cli(**kwargs)
         has_plugin_options = bool(plugin_options)
-        
+
         if has_config_options or has_plugin_options:
             # Options provided, delegate to set functionality
             _set_config(author, user, mail, license, template, **kwargs)
@@ -593,29 +688,29 @@ def _show_config():
     config_path = get_config_path()
     click.echo(f"Config file: {config_path}")
     click.echo()
-    
+
     defaults = config_data.get("default", {})
     if not defaults:
         click.echo("No configuration set")
         return
-    
+
     # Display basic configuration
     basic_config_keys = {"author", "user", "mail", "license_type", "template"}
     basic_config = {}
     plugin_config = {}
-    
+
     for key, value in defaults.items():
         if key in basic_config_keys:
             basic_config[key] = value
         elif isinstance(value, dict):
             # This is a plugin section in nested structure
             plugin_config[key] = value
-    
+
     # Display basic configuration
     for key, value in basic_config.items():
         if value is not None:
             click.echo(f"{key}: {repr(value)}")
-    
+
     # Display plugin configuration
     if plugin_config:
         click.echo("\nPlugin configuration:")
