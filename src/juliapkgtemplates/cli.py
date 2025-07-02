@@ -545,14 +545,87 @@ def plugin_info(plugin_name: Optional[str]):
         click.echo("This plugin typically has no configurable options.")
 
 
-@main.command()
+@main.group(invoke_without_command=True)
 @click.option("--author", help="Set default author")
 @click.option("--user", help="Set default user")
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
 @click.option("--template", help="Set default template")
 @create_dynamic_plugin_options
+@click.pass_context
 def config(
+    ctx,
+    author: Optional[str],
+    user: Optional[str], 
+    mail: Optional[str],
+    license: Optional[str],
+    template: Optional[str],
+    **kwargs
+):
+    """Configuration management"""
+    if ctx.invoked_subcommand is None:
+        # Check if any configuration options are provided
+        has_config_options = any([
+            author is not None,
+            user is not None,
+            mail is not None,
+            license is not None,
+            template is not None,
+        ])
+        
+        # Check if any plugin options are provided
+        plugin_options = parse_plugin_options_from_cli(**kwargs)
+        has_plugin_options = bool(plugin_options)
+        
+        if has_config_options or has_plugin_options:
+            # Options provided, delegate to set functionality
+            _set_config(author, user, mail, license, template, **kwargs)
+        else:
+            # No options provided, show config as default
+            _show_config()
+
+
+def _show_config():
+    """Display current configuration values"""
+    config_data = load_config()
+    click.echo("Current configuration:")
+    click.echo("=" * 40)
+    config_path = get_config_path()
+    click.echo(f"Config file: {config_path}")
+    click.echo()
+    
+    defaults = config_data.get("default", {})
+    if not defaults:
+        click.echo("No configuration set")
+        return
+    
+    # Display basic configuration
+    basic_config_keys = {"author", "user", "mail", "license_type", "template"}
+    basic_config = {}
+    plugin_config = {}
+    
+    for key, value in defaults.items():
+        if key in basic_config_keys:
+            basic_config[key] = value
+        elif isinstance(value, dict):
+            # This is a plugin section in nested structure
+            plugin_config[key] = value
+    
+    # Display basic configuration
+    for key, value in basic_config.items():
+        if value is not None:
+            click.echo(f"{key}: {repr(value)}")
+    
+    # Display plugin configuration
+    if plugin_config:
+        click.echo("\nPlugin configuration:")
+        for plugin_name, options in plugin_config.items():
+            click.echo(f"  {plugin_name}:")
+            for option_key, option_value in options.items():
+                click.echo(f"    {option_key}: {repr(option_value)}")
+
+
+def _set_config(
     author: Optional[str],
     user: Optional[str],
     mail: Optional[str],
@@ -560,63 +633,13 @@ def config(
     template: Optional[str],
     **kwargs,
 ):
-    """Set or display configuration values"""
+    """Set configuration values (shared logic)"""
     config_data = load_config()
     if "default" not in config_data:
         config_data["default"] = {}
 
-    # Check if any configuration options are provided
-    has_config_options = any([
-        author is not None,
-        user is not None,
-        mail is not None,
-        license is not None,
-        template is not None,
-    ])
-    
     # Check if any plugin options are provided
     plugin_options = parse_plugin_options_from_cli(**kwargs)
-    has_plugin_options = bool(plugin_options)
-    
-    # If no options provided, display current configuration
-    if not has_config_options and not has_plugin_options:
-        click.echo("Current configuration:")
-        click.echo("=" * 40)
-        config_path = get_config_path()
-        click.echo(f"Config file: {config_path}")
-        click.echo()
-        
-        defaults = config_data.get("default", {})
-        if not defaults:
-            click.echo("No configuration set")
-            return
-        
-        # Display basic configuration
-        basic_config_keys = {"author", "user", "mail", "license_type", "template"}
-        basic_config = {}
-        plugin_config = {}
-        
-        for key, value in defaults.items():
-            if key in basic_config_keys:
-                basic_config[key] = value
-            elif isinstance(value, dict):
-                # This is a plugin section in nested structure
-                plugin_config[key] = value
-        
-        # Display basic configuration
-        for key, value in basic_config.items():
-            if value is not None:
-                click.echo(f"{key}: {repr(value)}")
-        
-        # Display plugin configuration
-        if plugin_config:
-            click.echo("\nPlugin configuration:")
-            for plugin_name, options in plugin_config.items():
-                click.echo(f"  {plugin_name}:")
-                for option_key, option_value in options.items():
-                    click.echo(f"    {option_key}: {repr(option_value)}")
-        
-        return
 
     # Set configuration values
     updated = False
@@ -653,6 +676,33 @@ def config(
     if updated:
         save_config(config_data)
         click.echo("Configuration saved")
+    else:
+        click.echo("No configuration options provided")
+
+
+@config.command()
+def show():
+    """Display current configuration values"""
+    _show_config()
+
+
+@config.command()
+@click.option("--author", help="Set default author")
+@click.option("--user", help="Set default user")
+@click.option("--mail", help="Set default mail")
+@click.option("--license", help="Set default license")
+@click.option("--template", help="Set default template")
+@create_dynamic_plugin_options
+def set(
+    author: Optional[str],
+    user: Optional[str],
+    mail: Optional[str],
+    license: Optional[str],
+    template: Optional[str],
+    **kwargs,
+):
+    """Set configuration values"""
+    _set_config(author, user, mail, license, template, **kwargs)
 
 
 if __name__ == "__main__":
