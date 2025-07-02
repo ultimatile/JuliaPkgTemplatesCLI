@@ -1,6 +1,22 @@
 # CHANGELOG
 
 
+## v0.1.2 (2025-07-02)
+
+### Bug Fixes
+
+- Allow prerelease workflow to work with any branch PR to main
+  ([`ae7bcd0`](https://github.com/ultimatile/JuliaPkgTemplatesCLI/commit/ae7bcd01ab8a1a67bfbef1218fc2ab10eb149d08))
+
+- Implement PSR dev sync workflow
+  ([`a3dd947`](https://github.com/ultimatile/JuliaPkgTemplatesCLI/commit/a3dd947aa00b39d1b941375986b419d30c23d058))
+
+- Split workflow into prerelease.yml (PR creation) and release.yml (main push) - prerelease.yml: PSR
+  execution on dev branch, version tagging, PR title update - release.yml: tag sync from dev to
+  main, version bump, GitHub release creation - Enables proper detection of individual commits
+  (feat:, fix:) for semantic versioning
+
+
 ## v0.1.1 (2025-06-30)
 
 ### Bug Fixes
