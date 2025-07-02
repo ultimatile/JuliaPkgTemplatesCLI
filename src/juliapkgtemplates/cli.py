@@ -44,6 +44,26 @@ def load_config() -> dict:
     return config
 
 
+def flatten_config_for_backward_compatibility(config: dict) -> dict:
+    """Convert nested config structure to flat dot-notation for backward compatibility"""
+    if "default" not in config:
+        return config
+    
+    defaults = config["default"].copy()
+    flattened_defaults = {}
+    
+    for key, value in defaults.items():
+        if isinstance(value, dict):
+            # This is a plugin section, flatten it
+            for plugin_key, plugin_value in value.items():
+                flattened_defaults[f"{key}.{plugin_key}"] = plugin_value
+        else:
+            # This is a basic config value
+            flattened_defaults[key] = value
+    
+    return {"default": flattened_defaults}
+
+
 def save_config(config: dict) -> None:
     """Save configuration to config.toml"""
     config_path = get_config_path()
@@ -54,10 +74,47 @@ def save_config(config: dict) -> None:
             tomli_w.dump(config, f)
     except ImportError:
         # Fallback to manual TOML writing if tomli_w is not available
-        content = "[default]\n"
+        content = ""
         defaults = config.get("default", {})
+        
+        # Write basic config values first
+        basic_values = {}
+        plugin_values = {}
+        
         for key, value in defaults.items():
-            content += f'{key} = "{value}"\n'
+            if "." in key:
+                plugin_name, option_name = key.split(".", 1)
+                if plugin_name not in plugin_values:
+                    plugin_values[plugin_name] = {}
+                plugin_values[plugin_name][option_name] = value
+            else:
+                basic_values[key] = value
+        
+        if basic_values or plugin_values:
+            content += "[default]\n"
+            for key, value in basic_values.items():
+                if isinstance(value, str):
+                    content += f'{key} = "{value}"\n'
+                elif isinstance(value, bool):
+                    content += f'{key} = {str(value).lower()}\n'
+                elif isinstance(value, (int, float)):
+                    content += f'{key} = {value}\n'
+                elif isinstance(value, list):
+                    content += f'{key} = {value}\n'
+            
+            # Write plugin sections
+            for plugin_name, options in plugin_values.items():
+                content += f"\n[default.{plugin_name}]\n"
+                for option_key, option_value in options.items():
+                    if isinstance(option_value, str):
+                        content += f'{option_key} = "{option_value}"\n'
+                    elif isinstance(option_value, bool):
+                        content += f'{option_key} = {str(option_value).lower()}\n'
+                    elif isinstance(option_value, (int, float)):
+                        content += f'{option_key} = {option_value}\n'
+                    elif isinstance(option_value, list):
+                        content += f'{option_key} = {option_value}\n'
+        
         with open(config_path, "w") as f:
             f.write(content)
     except Exception as e:
@@ -70,7 +127,8 @@ def get_help_with_default(
 ) -> str:
     """Generate help text with actual default value from config"""
     config = load_config()
-    defaults = config.get("default", {})
+    flat_config = flatten_config_for_backward_compatibility(config)
+    defaults = flat_config.get("default", {})
     actual_default = defaults.get(config_key, fallback_default)
     return f"{description} (default: {actual_default})"
 
@@ -80,7 +138,8 @@ def get_help_with_fallback(
 ) -> str:
     """Generate help text with config default or fallback text"""
     config = load_config()
-    defaults = config.get("default", {})
+    flat_config = flatten_config_for_backward_compatibility(config)
+    defaults = flat_config.get("default", {})
     value = defaults.get(config_key)
 
     if value and value.strip():
@@ -317,7 +376,9 @@ def create(
 
     # Establish configuration precedence: CLI args > config file > built-in defaults
     config = load_config()
-    defaults = config.get("default", {})
+    # Flatten nested structure for backward compatibility with existing code
+    flat_config = flatten_config_for_backward_compatibility(config)
+    defaults = flat_config.get("default", {})
 
     cli_plugin_options = parse_plugin_options_from_cli(**kwargs)
 
@@ -531,27 +592,23 @@ def config(
             return
         
         # Display basic configuration
-        basic_config = {
-            "author": defaults.get("author"),
-            "user": defaults.get("user"),
-            "mail": defaults.get("mail"),
-            "license_type": defaults.get("license_type"),
-            "template": defaults.get("template"),
-        }
+        basic_config_keys = {"author", "user", "mail", "license_type", "template"}
+        basic_config = {}
+        plugin_config = {}
         
+        for key, value in defaults.items():
+            if key in basic_config_keys:
+                basic_config[key] = value
+            elif isinstance(value, dict):
+                # This is a plugin section in nested structure
+                plugin_config[key] = value
+        
+        # Display basic configuration
         for key, value in basic_config.items():
             if value is not None:
                 click.echo(f"{key}: {repr(value)}")
         
         # Display plugin configuration
-        plugin_config = {}
-        for key, value in defaults.items():
-            if "." in key:
-                plugin_name, option_name = key.split(".", 1)
-                if plugin_name not in plugin_config:
-                    plugin_config[plugin_name] = {}
-                plugin_config[plugin_name][option_name] = value
-        
         if plugin_config:
             click.echo("\nPlugin configuration:")
             for plugin_name, options in plugin_config.items():
@@ -584,11 +641,12 @@ def config(
         click.echo(f"Set default template: {template}")
         updated = True
 
-    # Process plugin options
+    # Process plugin options - save in nested structure
     for plugin_name, options in plugin_options.items():
+        if plugin_name not in config_data["default"]:
+            config_data["default"][plugin_name] = {}
         for option_key, option_value in options.items():
-            config_key = f"{plugin_name}.{option_key}"
-            config_data["default"][config_key] = option_value
+            config_data["default"][plugin_name][option_key] = option_value
             click.echo(f"Set default {plugin_name}.{option_key}: {option_value}")
             updated = True
 
