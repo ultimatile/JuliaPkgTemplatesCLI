@@ -584,11 +584,28 @@ def generate_fish_completion() -> str:
             continue  # License is handled separately
 
         option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
+        # Remove -- prefix for fish completion
+        fish_option = option_name[2:]
         plugin_options.append(
-            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {option_name[2:]} -d "{plugin} plugin options (space-separated key=value pairs)"'
+            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {fish_option} -d "{plugin} plugin options (space-separated key=value pairs)"'
         )
 
     plugin_options_str = "\n".join(plugin_options)
+
+    # Generate config command plugin options
+    config_plugin_options = []
+    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+        if plugin == "License":
+            continue  # License is handled separately
+
+        option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
+        # Remove -- prefix for fish completion
+        fish_option = option_name[2:]
+        config_plugin_options.append(
+            f'complete -c jtc -n "__fish_seen_subcommand_from config" -l {fish_option} -d "Set default {plugin} plugin options (space-separated key=value pairs)"'
+        )
+
+    config_plugin_options_str = "\n".join(config_plugin_options)
 
     completion_script = f'''# Fish completion for jtc (JuliaPkgTemplatesCLI)
 
@@ -618,9 +635,9 @@ complete -c jtc -n "__fish_seen_subcommand_from create" -l dry-run -d "Show what
 # Plugin options for create command (dynamically generated)
 {plugin_options_str}
 
-# config command and subcommands
-complete -c jtc -n "__fish_seen_subcommand_from config" -a "show" -d "Display current configuration values"
-complete -c jtc -n "__fish_seen_subcommand_from config" -a "set" -d "Set configuration values"
+# config command and subcommands (only when no config options are specified)
+complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "show" -d "Display current configuration values"
+complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "set" -d "Set configuration values"
 
 # config command options (for direct invocation and set subcommand)
 complete -c jtc -n "__fish_seen_subcommand_from config" -l author -d "Set default author"
@@ -628,6 +645,9 @@ complete -c jtc -n "__fish_seen_subcommand_from config" -l user -d "Set default 
 complete -c jtc -n "__fish_seen_subcommand_from config" -l mail -d "Set default mail"
 complete -c jtc -n "__fish_seen_subcommand_from config" -l license -d "Set default license" -a "{licenses}"
 complete -c jtc -n "__fish_seen_subcommand_from config" -l template -d "Set default template" -a "minimal standard full"
+
+# Plugin options for config command (dynamically generated)
+{config_plugin_options_str}
 
 # plugin-info command - complete with available plugin names (dynamically generated)
 complete -c jtc -n "__fish_seen_subcommand_from plugin-info" -a "{plugins}" -d "Plugin name"
