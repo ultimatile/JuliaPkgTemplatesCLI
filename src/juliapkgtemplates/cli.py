@@ -482,12 +482,14 @@ def plugin_info(plugin_name: Optional[str]):
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
 @click.option("--template", help="Set default template")
+@create_dynamic_plugin_options
 def config(
     author: Optional[str],
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
+    **kwargs,
 ):
     """Set configuration values"""
     config_data = load_config()
@@ -515,6 +517,15 @@ def config(
         config_data["default"]["template"] = template
         click.echo(f"Set default template: {template}")
         updated = True
+
+    # Process plugin options
+    plugin_options = parse_plugin_options_from_cli(**kwargs)
+    for plugin_name, options in plugin_options.items():
+        for option_key, option_value in options.items():
+            config_key = f"{plugin_name}.{option_key}"
+            config_data["default"][config_key] = option_value
+            click.echo(f"Set default {plugin_name}.{option_key}: {option_value}")
+            updated = True
 
     if updated:
         save_config(config_data)
