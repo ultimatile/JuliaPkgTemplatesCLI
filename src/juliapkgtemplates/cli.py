@@ -341,6 +341,13 @@ def main():
     default=False,
     help="Show what Julia Template function would be executed without actually running it",
 )
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    default=False,
+    help="Enable verbose output for debugging",
+)
 @create_dynamic_plugin_options
 @click.pass_context
 def create(
@@ -354,6 +361,7 @@ def create(
     license: Optional[str],
     julia_version: Optional[str],
     dry_run: bool,
+    verbose: bool,
     **kwargs,
 ):
     """Create a new Julia package"""
@@ -454,6 +462,7 @@ def create(
             final_mail,
             Path(output_dir),
             package_config,
+            verbose=verbose,
         )
         click.echo(f"Package '{package_name}' created successfully at {package_dir}")
     except Exception as e:

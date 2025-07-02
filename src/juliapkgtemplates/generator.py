@@ -161,6 +161,7 @@ class JuliaPackageGenerator:
         mail: Optional[str],
         output_dir: Path,
         config: Optional[PackageConfig] = None,
+        verbose: bool = False,
     ) -> Path:
         """
         Create a new Julia package using PkgTemplates.jl
@@ -190,7 +191,14 @@ class JuliaPackageGenerator:
         )
 
         package_dir = self._call_julia_generator(
-            package_name, author, user, mail, output_dir, plugins, cfg.julia_version
+            package_name,
+            author,
+            user,
+            mail,
+            output_dir,
+            plugins,
+            cfg.julia_version,
+            verbose,
         )
 
         self._add_mise_config(package_dir, package_name)
@@ -479,6 +487,7 @@ class JuliaPackageGenerator:
         output_dir: Path,
         plugins: Dict[str, Any],
         julia_version: Optional[str] = None,
+        verbose: bool = False,
     ) -> Path:
         """Execute PkgTemplates.jl package generation via subprocess interface"""
         julia_script = self.scripts_dir / "pkg_generator.jl"
@@ -503,7 +512,14 @@ class JuliaPackageGenerator:
             cmd.append(julia_version)
 
         try:
-            _ = subprocess.run(cmd, capture_output=True, text=True, check=True)
+            if verbose:
+                # In verbose mode, show Julia output in real-time
+                _result = subprocess.run(cmd, text=True, check=True)
+            else:
+                # In normal mode, capture output for error handling
+                _result = subprocess.run(
+                    cmd, capture_output=True, text=True, check=True
+                )
 
             package_dir = output_dir / package_name
             if not package_dir.exists():
@@ -512,24 +528,37 @@ class JuliaPackageGenerator:
             return package_dir
 
         except subprocess.CalledProcessError as e:
-            if "Error creating package:" in e.stdout or "Error:" in e.stdout:
-                error_pattern = re.compile(r"(Error:|Error creating package:)\s*(.+)")
-                error_lines = error_pattern.findall(e.stdout)
-                if error_lines:
-                    error_msg = error_lines[-1][1]
-                else:
-                    error_msg = f"Julia script failed: {e.stdout}"
-                if "PkgTemplates" in e.stderr:
-                    error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
-                raise RuntimeError(error_msg) from e
-            else:
-                # Handle case where Julia generates warnings but completes successfully
+            if verbose:
+                # In verbose mode, output was already shown, just handle the error
                 package_dir = output_dir / package_name
                 if package_dir.exists():
                     return package_dir
                 else:
-                    error_msg = f"Julia script failed: {e.stderr}"
+                    raise RuntimeError(
+                        f"Julia script failed with exit code {e.returncode}"
+                    ) from e
+            else:
+                # In normal mode, parse error from captured output
+                if "Error creating package:" in e.stdout or "Error:" in e.stdout:
+                    error_pattern = re.compile(
+                        r"(Error:|Error creating package:)\s*(.+)"
+                    )
+                    error_lines = error_pattern.findall(e.stdout)
+                    if error_lines:
+                        error_msg = error_lines[-1][1]
+                    else:
+                        error_msg = f"Julia script failed: {e.stdout}"
+                    if "PkgTemplates" in e.stderr:
+                        error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
                     raise RuntimeError(error_msg) from e
+                else:
+                    # Handle case where Julia generates warnings but completes successfully
+                    package_dir = output_dir / package_name
+                    if package_dir.exists():
+                        return package_dir
+                    else:
+                        error_msg = f"Julia script failed: {e.stderr}"
+                        raise RuntimeError(error_msg) from e
         except FileNotFoundError:
             raise RuntimeError(
                 "Julia not found. Please install Julia and ensure it's in your PATH."
