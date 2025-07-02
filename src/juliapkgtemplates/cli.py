@@ -499,11 +499,69 @@ def config(
     template: Optional[str],
     **kwargs,
 ):
-    """Set configuration values"""
+    """Set or display configuration values"""
     config_data = load_config()
     if "default" not in config_data:
         config_data["default"] = {}
 
+    # Check if any configuration options are provided
+    has_config_options = any([
+        author is not None,
+        user is not None,
+        mail is not None,
+        license is not None,
+        template is not None,
+    ])
+    
+    # Check if any plugin options are provided
+    plugin_options = parse_plugin_options_from_cli(**kwargs)
+    has_plugin_options = bool(plugin_options)
+    
+    # If no options provided, display current configuration
+    if not has_config_options and not has_plugin_options:
+        click.echo("Current configuration:")
+        click.echo("=" * 40)
+        config_path = get_config_path()
+        click.echo(f"Config file: {config_path}")
+        click.echo()
+        
+        defaults = config_data.get("default", {})
+        if not defaults:
+            click.echo("No configuration set")
+            return
+        
+        # Display basic configuration
+        basic_config = {
+            "author": defaults.get("author"),
+            "user": defaults.get("user"),
+            "mail": defaults.get("mail"),
+            "license_type": defaults.get("license_type"),
+            "template": defaults.get("template"),
+        }
+        
+        for key, value in basic_config.items():
+            if value is not None:
+                click.echo(f"{key}: {repr(value)}")
+        
+        # Display plugin configuration
+        plugin_config = {}
+        for key, value in defaults.items():
+            if "." in key:
+                plugin_name, option_name = key.split(".", 1)
+                if plugin_name not in plugin_config:
+                    plugin_config[plugin_name] = {}
+                plugin_config[plugin_name][option_name] = value
+        
+        if plugin_config:
+            click.echo("\nPlugin configuration:")
+            for plugin_name, options in plugin_config.items():
+                click.echo(f"  {plugin_name}:")
+                for option_key, option_value in options.items():
+                    click.echo(f"    {option_key}: {repr(option_value)}")
+        
+        return
+
+    # Set configuration values
     updated = False
     if author is not None:
         config_data["default"]["author"] = author
@@ -527,7 +585,6 @@ def config(
         updated = True
 
     # Process plugin options
-    plugin_options = parse_plugin_options_from_cli(**kwargs)
     for plugin_name, options in plugin_options.items():
         for option_key, option_value in options.items():
             config_key = f"{plugin_name}.{option_key}"
@@ -538,8 +595,6 @@ def config(
     if updated:
         save_config(config_data)
         click.echo("Configuration saved")
-    else:
-        click.echo("No configuration options provided")
 
 
 if __name__ == "__main__":
