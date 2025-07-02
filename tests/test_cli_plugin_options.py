@@ -8,6 +8,7 @@ from juliapkgtemplates.cli import (
     main,
     parse_plugin_option_value,
     parse_plugin_options_from_cli,
+    load_config,
 )
 
 
@@ -148,3 +149,94 @@ class TestCLICommands:
 
         assert result.exit_code == 0
         assert "Set default template: minimal" in result.output
+
+    def test_config_command_with_plugin_options_old_format(self, isolated_config):
+        """Test config command with plugin options using old format"""
+        runner = CliRunner()
+
+        result = runner.invoke(
+            main,
+            [
+                "config",
+                "--git-option",
+                "ssh=true",
+                "--git-option",
+                "manifest=false",
+                "--tests-option",
+                "aqua=true",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Set default Git.ssh: True" in result.output
+        assert "Set default Git.manifest: False" in result.output
+        assert "Set default Tests.aqua: True" in result.output
+        assert "Configuration saved" in result.output
+
+        # Verify the config was saved correctly
+        config_data = load_config()
+        assert config_data["default"]["Git.ssh"] is True
+        assert config_data["default"]["Git.manifest"] is False
+        assert config_data["default"]["Tests.aqua"] is True
+
+    def test_config_command_with_plugin_options_new_format(self, isolated_config):
+        """Test config command with plugin options using new format"""
+        runner = CliRunner()
+
+        result = runner.invoke(
+            main,
+            [
+                "config",
+                "--gitoption",
+                "ssh=true manifest=false",
+                "--testsoption",
+                "aqua=true project=false",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Set default Git.ssh: True" in result.output
+        assert "Set default Git.manifest: False" in result.output
+        assert "Set default Tests.aqua: True" in result.output
+        assert "Set default Tests.project: False" in result.output
+        assert "Configuration saved" in result.output
+
+        # Verify the config was saved correctly
+        config_data = load_config()
+        assert config_data["default"]["Git.ssh"] is True
+        assert config_data["default"]["Git.manifest"] is False
+        assert config_data["default"]["Tests.aqua"] is True
+        assert config_data["default"]["Tests.project"] is False
+
+    def test_config_command_mixed_basic_and_plugin_options(self, isolated_config):
+        """Test config command with both basic and plugin options"""
+        runner = CliRunner()
+
+        result = runner.invoke(
+            main,
+            [
+                "config",
+                "--author",
+                "John Doe",
+                "--template",
+                "standard",
+                "--git-option",
+                "ssh=true",
+                "--formatter-option",
+                "style=blue",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Set default author: John Doe" in result.output
+        assert "Set default template: standard" in result.output
+        assert "Set default Git.ssh: True" in result.output
+        assert "Set default Formatter.style: blue" in result.output
+        assert "Configuration saved" in result.output
+
+        # Verify the config was saved correctly
+        config_data = load_config()
+        assert config_data["default"]["author"] == "John Doe"
+        assert config_data["default"]["template"] == "standard"
+        assert config_data["default"]["Git.ssh"] is True
+        assert config_data["default"]["Formatter.style"] == "blue"
