@@ -262,24 +262,10 @@ def main():
 )
 @click.option(
     "--license",
-    type=click.Choice(
-        [
-            "MIT",
-            "Apache",
-            "BSD2",
-            "BSD3",
-            "GPL2",
-            "GPL3",
-            "MPL",
-            "ISC",
-            "LGPL2",
-            "LGPL3",
-            "AGPL3",
-            "EUPL",
-        ]
-    ),
     help=get_help_with_fallback(
-        "License type", "license_type", "uses PkgTemplates.jl default if not set"
+        "License type (common: MIT, Apache, BSD2, BSD3, GPL2, GPL3, MPL, ISC, LGPL2, LGPL3, AGPL3, EUPL; or any PkgTemplates.jl license identifier)",
+        "license_type",
+        "uses PkgTemplates.jl default if not set",
     ),
 )
 @click.option(
@@ -480,9 +466,9 @@ def plugin_info(plugin_name: Optional[str]):
         click.echo("Options:")
         click.echo("  name=license_name    - License identifier")
         click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --license-option name=Apache-2.0")
+        click.echo("  jtc create MyPkg --license Apache-2.0")
         click.echo(
-            "\nNote: Use --license for common licenses, --license-option for custom ones"
+            "\nNote: --license accepts both common licenses (MIT, Apache, etc.) and custom PkgTemplates.jl license identifiers"
         )
 
     else:
