@@ -45,9 +45,9 @@ class TestPluginOptionParsing:
     def test_parse_plugin_options_from_cli(self):
         """Test parsing plugin options from CLI kwargs"""
         kwargs = {
-            "git_option": ["manifest=false", "ssh=true"],
-            "tests_option": ["aqua=true", "project=false"],
-            "formatter_option": ["style=blue"],
+            "git": "manifest=false ssh=true",
+            "tests": "aqua=true project=false",
+            "formatter": "style=blue",
         }
 
         result = parse_plugin_options_from_cli(**kwargs)
@@ -73,10 +73,8 @@ class TestCLICommands:
             [
                 "create",
                 "TestPkg",
-                "--git-option",
-                "manifest=false",
-                "--git-option",
-                "ssh=true",
+                "--git",
+                "manifest=false ssh=true",
                 "--dry-run",
             ],
         )
@@ -94,10 +92,8 @@ class TestCLICommands:
             [
                 "create",
                 "TestPkg",
-                "--tests-option",
-                "aqua=true",
-                "--tests-option",
-                "jet=true",
+                "--tests",
+                "aqua=true jet=true",
                 "--dry-run",
             ],
         )
@@ -111,7 +107,7 @@ class TestCLICommands:
         runner = CliRunner()
 
         result = runner.invoke(
-            main, ["create", "TestPkg", "--formatter-option", "style=blue", "--dry-run"]
+            main, ["create", "TestPkg", "--formatter", "style=blue", "--dry-run"]
         )
 
         assert result.exit_code == 0
@@ -126,11 +122,11 @@ class TestCLICommands:
             [
                 "create",
                 "TestPkg",
-                "--git-option",
+                "--git",
                 "manifest=false",
-                "--tests-option",
+                "--tests",
                 "aqua=true",
-                "--formatter-option",
+                "--formatter",
                 "style=blue",
                 "--dry-run",
             ],
@@ -142,10 +138,10 @@ class TestCLICommands:
         assert 'style="blue"' in result.output
 
     def test_config_command(self, temp_config_dir):
-        """Test config command"""
+        """Test config set command"""
         runner = CliRunner()
 
-        result = runner.invoke(main, ["config", "--template", "minimal"])
+        result = runner.invoke(main, ["config", "set", "--template", "minimal"])
 
         assert result.exit_code == 0
         assert "Set default template: minimal" in result.output
@@ -158,11 +154,10 @@ class TestCLICommands:
             main,
             [
                 "config",
-                "--git-option",
-                "ssh=true",
-                "--git-option",
-                "manifest=false",
-                "--tests-option",
+                "set",
+                "--git",
+                "ssh=true manifest=false",
+                "--tests",
                 "aqua=true",
             ],
         )
@@ -175,9 +170,9 @@ class TestCLICommands:
 
         # Verify the config was saved correctly
         config_data = load_config()
-        assert config_data["default"]["Git.ssh"] is True
-        assert config_data["default"]["Git.manifest"] is False
-        assert config_data["default"]["Tests.aqua"] is True
+        assert config_data["default"]["Git"]["ssh"] is True
+        assert config_data["default"]["Git"]["manifest"] is False
+        assert config_data["default"]["Tests"]["aqua"] is True
 
     def test_config_command_with_plugin_options_new_format(self, isolated_config):
         """Test config command with plugin options using new format"""
@@ -187,9 +182,10 @@ class TestCLICommands:
             main,
             [
                 "config",
-                "--gitoption",
+                "set",
+                "--git",
                 "ssh=true manifest=false",
-                "--testsoption",
+                "--tests",
                 "aqua=true project=false",
             ],
         )
@@ -203,10 +199,10 @@ class TestCLICommands:
 
         # Verify the config was saved correctly
         config_data = load_config()
-        assert config_data["default"]["Git.ssh"] is True
-        assert config_data["default"]["Git.manifest"] is False
-        assert config_data["default"]["Tests.aqua"] is True
-        assert config_data["default"]["Tests.project"] is False
+        assert config_data["default"]["Git"]["ssh"] is True
+        assert config_data["default"]["Git"]["manifest"] is False
+        assert config_data["default"]["Tests"]["aqua"] is True
+        assert config_data["default"]["Tests"]["project"] is False
 
     def test_config_command_mixed_basic_and_plugin_options(self, isolated_config):
         """Test config command with both basic and plugin options"""
@@ -216,13 +212,14 @@ class TestCLICommands:
             main,
             [
                 "config",
+                "set",
                 "--author",
                 "John Doe",
                 "--template",
                 "standard",
-                "--git-option",
+                "--git",
                 "ssh=true",
-                "--formatter-option",
+                "--formatter",
                 "style=blue",
             ],
         )
@@ -238,5 +235,5 @@ class TestCLICommands:
         config_data = load_config()
         assert config_data["default"]["author"] == "John Doe"
         assert config_data["default"]["template"] == "standard"
-        assert config_data["default"]["Git.ssh"] is True
-        assert config_data["default"]["Formatter.style"] == "blue"
+        assert config_data["default"]["Git"]["ssh"] is True
+        assert config_data["default"]["Formatter"]["style"] == "blue"

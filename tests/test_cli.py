@@ -266,7 +266,66 @@ class TestConfigCommand:
     """Test config command"""
 
     def test_config_set_author(self, cli_runner, isolated_config):
-        """Test config command sets author"""
+        """Test config set command sets author"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(config_cmd, ["set", "--author", "New Author"])
+
+            assert result.exit_code == 0
+            assert "Set default author: New Author" in result.output
+            assert "Configuration saved" in result.output
+
+    def test_config_set_user(self, cli_runner, isolated_config):
+        """Test config set command sets user"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(config_cmd, ["set", "--user", "newuser"])
+
+            assert result.exit_code == 0
+            assert "Set default user: newuser" in result.output
+            assert "Configuration saved" in result.output
+
+    def test_config_set_mail(self, cli_runner, isolated_config):
+        """Test config set command sets mail"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(config_cmd, ["set", "--mail", "new@example.com"])
+
+            assert result.exit_code == 0
+            assert "Set default mail: new@example.com" in result.output
+            assert "Configuration saved" in result.output
+
+    def test_config_show(self, cli_runner, isolated_config):
+        """Test config show command displays configuration"""
+        mock_config = {
+            "default": {
+                "author": "Test Author",
+                "license_type": "MIT"
+            }
+        }
+        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
+            result = cli_runner.invoke(config_cmd, ["show"])
+
+            assert result.exit_code == 0
+            assert "Current configuration:" in result.output
+            assert "author: 'Test Author'" in result.output
+            assert "license_type: 'MIT'" in result.output
+
+    def test_config_bare_command_shows_config(self, cli_runner, isolated_config):
+        """Test bare config command shows configuration (alias for show)"""
+        mock_config = {
+            "default": {
+                "author": "Test Author",
+                "license_type": "MIT"
+            }
+        }
+        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
+            result = cli_runner.invoke(config_cmd, [])
+
+            assert result.exit_code == 0
+            assert "Current configuration:" in result.output
+            assert "author: 'Test Author'" in result.output
+            assert "license_type: 'MIT'" in result.output
+
+    def test_config_with_options_sets_config(self, cli_runner, isolated_config):
+        """Test config command with options behaves like config set"""
         with patch("juliapkgtemplates.cli.load_config", return_value={}):
             result = cli_runner.invoke(config_cmd, ["--author", "New Author"])
 
@@ -274,22 +333,13 @@ class TestConfigCommand:
             assert "Set default author: New Author" in result.output
             assert "Configuration saved" in result.output
 
-    def test_config_set_user(self, cli_runner, isolated_config):
-        """Test config command sets user"""
+    def test_config_with_plugin_options_sets_config(self, cli_runner, isolated_config):
+        """Test config command with plugin options behaves like config set"""
         with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["--user", "newuser"])
+            result = cli_runner.invoke(config_cmd, ["--git", "ssh=true"])
 
             assert result.exit_code == 0
-            assert "Set default user: newuser" in result.output
-            assert "Configuration saved" in result.output
-
-    def test_config_set_mail(self, cli_runner, isolated_config):
-        """Test config command sets mail"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["--mail", "new@example.com"])
-
-            assert result.exit_code == 0
-            assert "Set default mail: new@example.com" in result.output
+            assert "Set default Git.ssh: True" in result.output
             assert "Configuration saved" in result.output
 
 
