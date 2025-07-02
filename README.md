@@ -184,6 +184,3 @@ uv tool install .
 ## Release
 
 Create PR with title containing "release". GitHub Actions will automatically update the title to "release: v{version}".
-
----
-*Documentation updated 2025-07-01*
