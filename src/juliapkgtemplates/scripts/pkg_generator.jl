@@ -31,7 +31,7 @@ end
 
 function parse_license_plugin(plugin_str::AbstractString)
   license_match = match(r"License\(;\s*name=\"([^\"]+)\"\)", plugin_str)
-  if license_match !== nothing
+  if !isnothing(license_match)
     license_name = license_match.captures[1]
     return License(; name=license_name)
   else
@@ -41,7 +41,7 @@ end
 
 function parse_formatter_plugin(plugin_str::AbstractString)
   formatter_match = match(r"Formatter\(;\s*style=\"(\w+)\"\)", plugin_str)
-  if formatter_match !== nothing
+  if !isnothing(formatter_match)
     style = formatter_match.captures[1]
     return Formatter(; style=style)
   else
@@ -53,17 +53,17 @@ function parse_git_plugin(plugin_str::AbstractString)
   git_params = Dict{Symbol,Any}()
 
   manifest_match = match(r"manifest=(true|false)", plugin_str)
-  if manifest_match !== nothing
+  if !isnothing(manifest_match)
     git_params[:manifest] = manifest_match.captures[1] == "true"
   end
 
   ssh_match = match(r"ssh=(true|false)", plugin_str)
-  if ssh_match !== nothing
+  if !isnothing(ssh_match)
     git_params[:ssh] = ssh_match.captures[1] == "true"
   end
 
   ignore_match = match(r"ignore=\[([^\]]+)\]", plugin_str)
-  if ignore_match !== nothing
+  if !isnothing(ignore_match)
     ignore_str = ignore_match.captures[1]
     patterns = [strip(s, ['"', ' ']) for s in split(ignore_str, ',') if !isempty(strip(s))]
     git_params[:ignore] = patterns
@@ -92,7 +92,7 @@ end
 
 function parse_projectfile_plugin(plugin_str::AbstractString)
   version_match = match(r"ProjectFile\(;\s*version=v\"([^\"]+)\"\)", plugin_str)
-  if version_match !== nothing
+  if !isnothing(version_match)
     version_str = version_match.captures[1]
     return ProjectFile(; version=VersionNumber(version_str))
   else
@@ -139,6 +139,7 @@ function find_plugin_type(plugin_str::AbstractString)
   if haskey(PLUGIN_PARSERS, extracted_type)
     return extracted_type
   end
+  
   return nothing
 end
 
@@ -185,6 +186,7 @@ function parse_plugins(plugins_str::AbstractString)
 
   plugins = []
   seen_plugin_types = Set{String}()
+  
   for plugin_str in plugin_strs
     plugin_str = strip(plugin_str)
     if isempty(plugin_str)
