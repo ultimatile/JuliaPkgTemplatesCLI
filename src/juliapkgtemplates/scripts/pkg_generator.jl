@@ -136,10 +136,15 @@ function init_plugin_parsers()
 end
 
 function find_plugin_type(plugin_str::AbstractString)
-  for plugin_type in keys(PLUGIN_PARSERS)
-    if occursin(plugin_type, plugin_str)
-      return plugin_type
-    end
+  plugin_type = match(r"^([A-Za-z{}\[\]]+)", plugin_str)
+  if isnothing(plugin_type)
+    return nothing
+  end
+  
+  extracted_type = plugin_type.captures[1]
+  
+  if haskey(PLUGIN_PARSERS, extracted_type)
+    return extracted_type
   end
   return nothing
 end
@@ -189,6 +194,7 @@ function parse_plugins(plugins_str::AbstractString)
   end
 
   plugins = []
+  seen_plugin_types = Set{String}()
   for plugin_str in plugin_strs
     plugin_str = strip(plugin_str)
     if isempty(plugin_str)
@@ -197,10 +203,16 @@ function parse_plugins(plugins_str::AbstractString)
 
     plugin_type = find_plugin_type(plugin_str)
     if !isnothing(plugin_type)
+      if plugin_type in seen_plugin_types
+        @warn "Duplicate plugin type '$plugin_type' found. Skipping: $plugin_str"
+        continue
+      end
+      
       parser = PLUGIN_PARSERS[plugin_type]
       try
         plugin = parser(plugin_str)
         push!(plugins, plugin)
+        push!(seen_plugin_types, plugin_type)
       catch e
         @warn "Error parsing plugin $plugin_str: $e"
       end
