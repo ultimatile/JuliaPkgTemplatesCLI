@@ -16,11 +16,7 @@ catch e
   rethrow(e)
 end
 
-try
-  using LibGit2: GitError
-catch
-  GitError = Exception
-end
+using LibGit2: GitError
 
 
 const PLUGIN_PARSERS = Dict{String,Function}()
@@ -280,12 +276,7 @@ function main()
   plugins_str = ARGS[6]
   julia_version = length(ARGS) >= 7 ? ARGS[7] : nothing
 
-  try
-    generate_package(package_name, author, user, mail, output_dir, plugins_str, julia_version)
-  catch e
-    println("Error: $e")
-    exit(1)
-  end
+  generate_package(package_name, author, user, mail, output_dir, plugins_str, julia_version)
 end
 
 if abspath(PROGRAM_FILE) == @__FILE__
