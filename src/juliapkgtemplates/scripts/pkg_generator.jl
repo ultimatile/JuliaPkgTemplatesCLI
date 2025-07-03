@@ -260,6 +260,7 @@ function generate_package(package_name::AbstractString, author::AbstractString, 
       println("Git error code: $(e.code)")
       println("Git error class: $(e.class)")
     end
+    showerror(stdout, e, catch_backtrace())
     rethrow(e)
   end
 end
