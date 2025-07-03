@@ -23,7 +23,6 @@ catch
 end
 
 
-# Registry mapping plugin names to their configuration parsers
 const PLUGIN_PARSERS = Dict{String,Function}()
 
 function register_plugin_parser(plugin_type::AbstractString, parser::Function)
@@ -53,13 +52,11 @@ end
 function parse_git_plugin(plugin_str::AbstractString)
   git_params = Dict{Symbol,Any}()
 
-  # Extract Git configuration options from plugin string
   manifest_match = match(r"manifest=(true|false)", plugin_str)
   if manifest_match !== nothing
     git_params[:manifest] = manifest_match.captures[1] == "true"
   end
 
-  # Determine repository access method
   ssh_match = match(r"ssh=(true|false)", plugin_str)
   if ssh_match !== nothing
     git_params[:ssh] = ssh_match.captures[1] == "true"
@@ -78,12 +75,10 @@ end
 function parse_tests_plugin(plugin_str::AbstractString)
   test_params = Dict{Symbol,Any}()
 
-  # Enable project-based test organization
   if occursin("project=true", plugin_str)
     test_params[:project] = true
   end
 
-  # Configure optional static analysis tools
   if occursin("aqua=true", plugin_str)
     test_params[:aqua] = true
   end
@@ -124,12 +119,10 @@ function init_plugin_parsers()
     "CompatHelper" => (plugin_str) -> CompatHelper()
   )
 
-  # Register parametric plugins
   for (plugin_type, parser) in parametric_plugins
     register_plugin_parser(plugin_type, parser)
   end
 
-  # Register parameterless plugins
   for (plugin_type, parser) in parameterless_plugins
     register_plugin_parser(plugin_type, parser)
   end
@@ -154,7 +147,6 @@ function parse_plugins(plugins_str::AbstractString)
 
   plugins_str = strip(plugins_str, ['[', ']'])
   
-  # Smart splitting that respects parentheses and brackets
   plugin_strs = []
   current_plugin = ""
   paren_depth = 0
@@ -179,7 +171,6 @@ function parse_plugins(plugins_str::AbstractString)
       elseif char == ']'
         bracket_depth -= 1
       elseif char == ',' && paren_depth == 0 && bracket_depth == 0
-        # This is a top-level comma, split here
         push!(plugin_strs, strip(current_plugin))
         current_plugin = ""
         continue
@@ -188,7 +179,6 @@ function parse_plugins(plugins_str::AbstractString)
     current_plugin *= char
   end
   
-  # Add the last plugin
   if !isempty(strip(current_plugin))
     push!(plugin_strs, strip(current_plugin))
   end
@@ -240,17 +230,12 @@ function generate_package(package_name::AbstractString, author::AbstractString, 
 
   template_args = Dict(:dir => output_dir, :plugins => plugins)
 
-  # Configure authorship information with email integration
   if !isempty(author) && !isempty(mail)
-    # Combine author and email in standard Git format
     template_args[:authors] = ["$author <$mail>"]
   elseif !isempty(author)
-    # Use author name only when email unavailable
     template_args[:authors] = [author]
   end
-  # Delegate to PkgTemplates.jl git config fallback when no author provided
 
-  # Set repository hosting username when specified
   if !isempty(user)
     template_args[:user] = user
   end
@@ -269,7 +254,6 @@ function generate_package(package_name::AbstractString, author::AbstractString, 
   catch e
     println("Error creating package: $e")
     if isa(e, GitError)
-      # Provide detailed Git diagnostics for repository initialization failures
       println("Git error details: $(e.msg)")
       println("Git error code: $(e.code)")
       println("Git error class: $(e.class)")
