@@ -139,9 +139,7 @@ function find_plugin_type(plugin_str::AbstractString)
   return nothing
 end
 
-function parse_plugins(plugins_str::AbstractString)
-  init_plugin_parsers()
-
+function split_plugin_strings(plugins_str::AbstractString)
   plugins_str = strip(plugins_str, ['[', ']'])
   
   plugin_strs = []
@@ -180,32 +178,48 @@ function parse_plugins(plugins_str::AbstractString)
     push!(plugin_strs, strip(current_plugin))
   end
 
+  return plugin_strs
+end
+
+function create_plugin_from_string(plugin_str::AbstractString, seen_types::Set{String})
+  plugin_str = strip(plugin_str)
+  if isempty(plugin_str)
+    return nothing
+  end
+
+  plugin_type = find_plugin_type(plugin_str)
+  if isnothing(plugin_type)
+    @warn "Unknown plugin: $plugin_str"
+    return nothing
+  end
+
+  if plugin_type in seen_types
+    @warn "Duplicate plugin type '$plugin_type' found. Skipping: $plugin_str"
+    return nothing
+  end
+  
+  parser = PLUGIN_PARSERS[plugin_type]
+  try
+    plugin = parser(plugin_str)
+    push!(seen_types, plugin_type)
+    return plugin
+  catch e
+    @warn "Error parsing plugin $plugin_str: $e"
+    return nothing
+  end
+end
+
+function parse_plugins(plugins_str::AbstractString)
+  init_plugin_parsers()
+  
+  plugin_strs = split_plugin_strings(plugins_str)
   plugins = []
   seen_plugin_types = Set{String}()
   
   for plugin_str in plugin_strs
-    plugin_str = strip(plugin_str)
-    if isempty(plugin_str)
-      continue
-    end
-
-    plugin_type = find_plugin_type(plugin_str)
-    if !isnothing(plugin_type)
-      if plugin_type in seen_plugin_types
-        @warn "Duplicate plugin type '$plugin_type' found. Skipping: $plugin_str"
-        continue
-      end
-      
-      parser = PLUGIN_PARSERS[plugin_type]
-      try
-        plugin = parser(plugin_str)
-        push!(plugins, plugin)
-        push!(seen_plugin_types, plugin_type)
-      catch e
-        @warn "Error parsing plugin $plugin_str: $e"
-      end
-    else
-      @warn "Unknown plugin: $plugin_str"
+    plugin = create_plugin_from_string(plugin_str, seen_plugin_types)
+    if !isnothing(plugin)
+      push!(plugins, plugin)
     end
   end
 
