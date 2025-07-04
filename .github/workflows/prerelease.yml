@@ -93,6 +93,6 @@ jobs:
           
           gh pr comment $PR_NUMBER --body "🔍 Next release version will be: **v$NEXT_VERSION**
 
-Tag \`v$NEXT_VERSION\` has been created on ${{ github.head_ref }} branch and will be synced to main after merge."
+          Tag \`v$NEXT_VERSION\` has been created on ${{ github.head_ref }} branch and will be synced to main after merge."
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
