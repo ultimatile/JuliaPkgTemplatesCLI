@@ -71,10 +71,12 @@ end
 function parse_tests_plugin(plugin_str::AbstractString)
   test_params = Dict{Symbol,Any}()
 
+  # Enable project-based test organization
   if occursin("project=true", plugin_str)
     test_params[:project] = true
   end
 
+  # Configure optional static analysis tools
   if occursin("aqua=true", plugin_str)
     test_params[:aqua] = true
   end
@@ -266,6 +268,7 @@ function generate_package(package_name::AbstractString, author::AbstractString, 
   catch e
     println("Error creating package: $e")
     if isa(e, GitError)
+      # Provide detailed Git diagnostics for repository initialization failures
       println("Git error details: $(e.msg)")
       println("Git error code: $(e.code)")
       println("Git error class: $(e.class)")
