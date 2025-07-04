@@ -127,7 +127,7 @@ function init_plugin_parsers()
 end
 
 function find_plugin_type(plugin_str::AbstractString)
-  plugin_type = match(r"^([A-Za-z{}\[\]]+)", plugin_str)
+  plugin_type = match(r"^([A-Za-z{}\[\]]+)(?:\(|$)", plugin_str)
   if isnothing(plugin_type)
     return nothing
   end
