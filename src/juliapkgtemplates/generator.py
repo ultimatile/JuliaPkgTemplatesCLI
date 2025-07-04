@@ -36,7 +36,7 @@ class PackageConfig:
     def from_dict(cls, config_dict: Optional[Dict[str, Any]] = None) -> "PackageConfig":
         """Create PackageConfig from dictionary, ignoring unknown keys"""
         if config_dict is None:
-            return cls()
+            return cls(plugin_options={})
 
         # Handle mixed input formats: direct plugin_options dict and dot notation from config files
         plugin_options = {}
@@ -133,7 +133,6 @@ class JuliaPackageGenerator:
 
     def __init__(self):
         self.templates_dir = Path(__file__).parent / "templates"
-        self.scripts_dir = Path(__file__).parent / "scripts"
 
         # Initialize Jinja2 environment
         self.jinja_env = Environment(
@@ -445,49 +444,18 @@ class JuliaPackageGenerator:
         plugins: Dict[str, Any],
         julia_version: Optional[str] = None,
     ) -> str:
-        """Generate Julia Template function code for visualization"""
-        plugins_str = "[" + ", ".join(plugins["plugins"]) + "]"
-
-        # Build the Julia Template function code
-        julia_code = "using PkgTemplates\n\n"
-
-        # Template constructor
-        template_args = []
-
-        # Add author if provided
-        if author:
-            template_args.append(f'authors=["{author}"]')
-
-        # Add user if provided
-        if user:
-            template_args.append(f'user="{user}"')
-
-        # Add mail if provided
-        if mail:
-            template_args.append(f'mail="{mail}"')
-
-        # Add output directory
-        template_args.append(f'dir="{output_dir}"')
-
-        # Add julia version if provided
-        if julia_version:
-            # Normalize version format to ensure v-prefix compatibility with VersionNumber
-            version_str = julia_version.lstrip("v")
-            template_args.append(f'julia=v"{version_str}"')
-
-        # Add plugins
-        template_args.append(f"plugins={plugins_str}")
-
-        julia_code += "t = Template(;\n"
-        for i, arg in enumerate(template_args):
-            julia_code += f"    {arg}"
-            if i < len(template_args) - 1:
-                julia_code += ","
-            julia_code += "\n"
-        julia_code += ")\n\n"
-
-        # Package generation call
-        julia_code += f't("{package_name}")\n'
+        """Generate Julia Template function code for visualization using Jinja2 template"""
+        # Generate Julia code using the same Jinja2 template
+        template = self.jinja_env.get_template("julia_template.j2")
+        julia_code = template.render(
+            package_name=package_name,
+            author=author,
+            user=user,
+            mail=mail,
+            output_dir=str(output_dir),
+            plugins=plugins["plugins"],
+            julia_version=julia_version,
+        )
 
         return julia_code
 
@@ -502,27 +470,20 @@ class JuliaPackageGenerator:
         julia_version: Optional[str] = None,
         verbose: bool = False,
     ) -> Path:
-        """Execute PkgTemplates.jl package generation via subprocess interface"""
-        julia_script = self.scripts_dir / "pkg_generator.jl"
+        """Execute PkgTemplates.jl package generation via Jinja2 template"""
+        # Generate Julia code using Jinja2 template
+        template = self.jinja_env.get_template("julia_template.j2")
+        julia_code = template.render(
+            package_name=package_name,
+            author=author,
+            user=user,
+            mail=mail,
+            output_dir=str(output_dir),
+            plugins=plugins["plugins"],
+            julia_version=julia_version,
+        )
 
-        if not julia_script.exists():
-            raise FileNotFoundError(f"Julia script not found: {julia_script}")
-
-        plugins_str = "[" + ", ".join(plugins["plugins"]) + "]"
-
-        cmd = [
-            "julia",
-            str(julia_script),
-            package_name,
-            author or "",
-            user or "",
-            mail or "",
-            str(output_dir),
-            plugins_str,
-        ]
-
-        if julia_version:
-            cmd.append(julia_version)
+        cmd = ["julia", "-e", julia_code]
 
         try:
             if verbose:
@@ -548,7 +509,7 @@ class JuliaPackageGenerator:
                     return package_dir
                 else:
                     raise RuntimeError(
-                        f"Julia script failed with exit code {e.returncode}"
+                        f"Julia execution failed with exit code {e.returncode}"
                     ) from e
             else:
                 # In normal mode, parse error from captured output
@@ -560,7 +521,7 @@ class JuliaPackageGenerator:
                     if error_lines:
                         error_msg = error_lines[-1][1]
                     else:
-                        error_msg = f"Julia script failed: {e.stdout}"
+                        error_msg = f"Julia execution failed: {e.stdout}"
                     if "PkgTemplates" in e.stderr:
                         error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
                     raise RuntimeError(error_msg) from e
@@ -570,7 +531,7 @@ class JuliaPackageGenerator:
                     if package_dir.exists():
                         return package_dir
                     else:
-                        error_msg = f"Julia script failed: {e.stderr}"
+                        error_msg = f"Julia execution failed: {e.stderr}"
                         raise RuntimeError(error_msg) from e
         except FileNotFoundError:
             raise RuntimeError(
