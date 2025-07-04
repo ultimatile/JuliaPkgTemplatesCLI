@@ -131,26 +131,26 @@ function find_plugin_type(plugin_str::AbstractString)
   if isnothing(plugin_type)
     return nothing
   end
-  
+
   extracted_type = plugin_type.captures[1]
-  
+
   if haskey(PLUGIN_PARSERS, extracted_type)
     return extracted_type
   end
-  
+
   return nothing
 end
 
 function split_plugin_strings(plugins_str::AbstractString)
   plugins_str = strip(plugins_str, ['[', ']'])
-  
+
   plugin_strs = []
   current_plugin = ""
   paren_depth = 0
   bracket_depth = 0
   in_quotes = false
   quote_char = '\0'
-  
+
   for char in plugins_str
     if !in_quotes && (char == '"' || char == '\'')
       in_quotes = true
@@ -175,7 +175,7 @@ function split_plugin_strings(plugins_str::AbstractString)
     end
     current_plugin *= char
   end
-  
+
   if !isempty(strip(current_plugin))
     push!(plugin_strs, strip(current_plugin))
   end
@@ -183,7 +183,7 @@ function split_plugin_strings(plugins_str::AbstractString)
   return plugin_strs
 end
 
-function create_plugin_from_string(plugin_str::AbstractString, seen_types::Set{String})
+function create_plugin_from_string(plugin_str::AbstractString)
   plugin_str = strip(plugin_str)
   if isempty(plugin_str)
     return nothing
@@ -195,15 +195,9 @@ function create_plugin_from_string(plugin_str::AbstractString, seen_types::Set{S
     return nothing
   end
 
-  if plugin_type in seen_types
-    @warn "Duplicate plugin type '$plugin_type' found. Skipping: $plugin_str"
-    return nothing
-  end
-  
   parser = PLUGIN_PARSERS[plugin_type]
   try
     plugin = parser(plugin_str)
-    push!(seen_types, plugin_type)
     return plugin
   catch e
     @warn "Error parsing plugin $plugin_str: $e"
@@ -211,17 +205,100 @@ function create_plugin_from_string(plugin_str::AbstractString, seen_types::Set{S
   end
 end
 
+function create_merged_plugin(plugin_type::String, plugin_strs::Vector{String})
+  if isempty(plugin_strs)
+    return nothing
+  end
+
+  # For single plugin string, use existing logic
+  if length(plugin_strs) == 1
+    return create_plugin_from_string(plugin_strs[1])
+  end
+
+  # For multiple plugin strings, merge them
+  if plugin_type == "Git"
+    return merge_git_plugins(plugin_strs)
+  elseif plugin_type == "Tests"
+    return merge_tests_plugins(plugin_strs)
+  else
+    # For plugins that don't support merging, use the last one
+    @warn "Plugin type '$plugin_type' does not support merging. Using last occurrence."
+    return create_plugin_from_string(plugin_strs[end])
+  end
+end
+
+function merge_git_plugins(plugin_strs::Vector{String})
+  merged_params = Dict{Symbol,Any}()
+
+  for plugin_str in plugin_strs
+    # Extract parameters from each plugin string
+    manifest_match = match(r"manifest=(true|false)", plugin_str)
+    if !isnothing(manifest_match)
+      merged_params[:manifest] = manifest_match.captures[1] == "true"
+    end
+
+    ssh_match = match(r"ssh=(true|false)", plugin_str)
+    if !isnothing(ssh_match)
+      merged_params[:ssh] = ssh_match.captures[1] == "true"
+    end
+
+    ignore_match = match(r"ignore=\[([^\]]+)\]", plugin_str)
+    if !isnothing(ignore_match)
+      ignore_str = ignore_match.captures[1]
+      patterns = [strip(s, ['"', ' ']) for s in split(ignore_str, ',') if !isempty(strip(s))]
+      if haskey(merged_params, :ignore)
+        # Merge ignore patterns
+        merged_params[:ignore] = vcat(merged_params[:ignore], patterns)
+      else
+        merged_params[:ignore] = patterns
+      end
+    end
+  end
+
+  return Git(; merged_params...)
+end
+
+function merge_tests_plugins(plugin_strs::Vector{String})
+  merged_params = Dict{Symbol,Any}()
+
+  for plugin_str in plugin_strs
+    if occursin("project=true", plugin_str)
+      merged_params[:project] = true
+    end
+
+    if occursin("aqua=true", plugin_str)
+      merged_params[:aqua] = true
+    end
+
+    if occursin("jet=true", plugin_str)
+      merged_params[:jet] = true
+    end
+  end
+
+  return Tests(; merged_params...)
+end
+
 function parse_plugins(plugins_str::AbstractString)
   init_plugin_parsers()
-  
+
   plugin_strs = split_plugin_strings(plugins_str)
-  plugins = []
-  seen_plugin_types = Set{String}()
-  
+  plugin_configs = Dict{String,Vector{String}}()
+
   for plugin_str in plugin_strs
-    plugin = create_plugin_from_string(plugin_str, seen_plugin_types)
-    if !isnothing(plugin)
-      push!(plugins, plugin)
+    plugin_type = find_plugin_type(plugin_str)
+    if !isnothing(plugin_type)
+      if !haskey(plugin_configs, plugin_type)
+        plugin_configs[plugin_type] = String[]
+      end
+      push!(plugin_configs[plugin_type], plugin_str)
+    end
+  end
+
+  plugins = []
+  for (plugin_type, plugin_strs_for_type) in plugin_configs
+    merged_plugin = create_merged_plugin(plugin_type, plugin_strs_for_type)
+    if !isnothing(merged_plugin)
+      push!(plugins, merged_plugin)
     end
   end
 
