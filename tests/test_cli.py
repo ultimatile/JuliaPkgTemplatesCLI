@@ -294,12 +294,7 @@ class TestConfigCommand:
 
     def test_config_show(self, cli_runner, isolated_config):
         """Test config show command displays configuration"""
-        mock_config = {
-            "default": {
-                "author": "Test Author",
-                "license_type": "MIT"
-            }
-        }
+        mock_config = {"default": {"author": "Test Author", "license_type": "MIT"}}
         with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
             result = cli_runner.invoke(config_cmd, ["show"])
 
@@ -310,12 +305,7 @@ class TestConfigCommand:
 
     def test_config_bare_command_shows_config(self, cli_runner, isolated_config):
         """Test bare config command shows configuration (alias for show)"""
-        mock_config = {
-            "default": {
-                "author": "Test Author",
-                "license_type": "MIT"
-            }
-        }
+        mock_config = {"default": {"author": "Test Author", "license_type": "MIT"}}
         with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
             result = cli_runner.invoke(config_cmd, [])
 
