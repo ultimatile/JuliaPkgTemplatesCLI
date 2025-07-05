@@ -4,23 +4,24 @@ This document describes the GitHub Actions workflows used in JuliaPkgTemplatesCL
 
 ## Workflow Overview
 
-The project uses a simple two-workflow release system:
+The project uses a three-workflow release system:
 
-1. **Development Phase**: Features are developed on the `dev` branch
-2. **Pre-release Preparation**: When a PR is opened to `main`, the version is determined and a tag is created on the source branch
-3. **Release**: When the PR is merged to `main`, the tag is synced and a GitHub release is created
+1. **Pre-release Preparation**: When a PR is opened to `main`, tests are run, version is determined, and a tag is created on the source branch
+2. **Tag Synchronization**: When the PR is merged to `main`, tags are synced from the dev branch to main
+3. **Release Creation**: When a version tag is pushed, a GitHub release is created
 
 ## Workflow Files
 
 ### 1. `prerelease.yml` - Prepare Release PR
-**Purpose**: Prepares release PRs by determining the next version and creating tags
+**Purpose**: Runs tests, determines next version, and prepares release tags for PRs targeting main
 
 **Triggers**:
 - Pull requests opened, ready for review, or synchronized targeting `main` branch
 - Manual dispatch with PR number input
 
 **Key Actions**:
-- Uses semantic-release to determine the next version without creating releases
+- Runs full test suite and type checking
+- Uses semantic-release to determine the next version
 - Updates PR title to include version (only for PRs with "release" in title)
 - Creates a version tag on the source branch
 - Comments on PR with version information
@@ -31,50 +32,62 @@ The project uses a simple two-workflow release system:
 - PR title update only occurs if PR title contains "release"
 
 **Key Steps**:
-1. **Get Next Version**: Uses `semantic-release version --print` to determine version
-2. **Update PR Title**: Updates title to format `release: v{version}` if "release" is in current title
-3. **Create Tag**: Creates `v{version}` tag on the source branch and pushes it
-4. **Comment**: Adds comment with version information to the PR
+1. **Test Suite**: Runs pytest and pyright type checking
+2. **Version Analysis**: Compares current main branch version with semantic-release calculated version
+3. **Update PR Title**: Updates title to format `release: v{version}` if "release" is in current title
+4. **Create Tag**: Creates `v{version}` tag on the source branch and pushes it
+5. **Comment**: Adds comment with version information to the PR
 
-### 2. `release.yml` - Release
-**Purpose**: Main release workflow that handles testing and GitHub release creation
+### 2. `tag-sync.yml` - Tag Synchronization
+**Purpose**: Synchronizes version tags from dev branch to main branch after merge
 
 **Triggers**:
-- Push to `main` branch
-- Manual dispatch
+- Push to `main` branch (excluding chore/ci commits)
 
-**Key Components**:
-
-#### Test Job
-- **Matrix Strategy**: Runs on Python 3.11 and 3.12
-- **Julia Setup**: Sets up Julia 1.10 and installs PkgTemplates.jl
-- **Test Execution**: Runs pytest with verbose output
-- **Type Checking**: Executes pyright on src/juliapkgtemplates/
-- **Required**: Must pass before release job runs
-
-#### Release Job
-- **Tag Synchronization**: Fetches tags from dev branch and finds latest version tag
-- **Version Update**: Updates `pyproject.toml` version to match the latest tag
-- **Release Creation**: Uses semantic-release to create GitHub release
-- **Commit**: Commits version update to main branch
+**Key Actions**:
+- Finds the latest version tag
+- Moves the tag to point to the current main branch commit
+- Triggers the release workflow manually after tag synchronization
 
 **Conditions**:
-- Release job only runs on push to main or manual dispatch
-- Skips if no version tags are found
-- Uses concurrency control to prevent parallel releases
+- Skips for commits with "chore(ci)", "chore:", or "ci:" in commit message
+- Only runs when version tags exist
+
+**Key Steps**:
+1. **Fetch Tags**: Retrieves all version tags from repository
+2. **Find Latest**: Identifies the most recent version tag
+3. **Sync Tag**: Moves tag from source branch to main branch commit
+4. **Trigger Release**: Manually triggers release workflow for the synced tag
+
+### 3. `release.yml` - GitHub Release Creation
+**Purpose**: Creates GitHub releases when version tags are pushed
+
+**Triggers**:
+- Push of version tags (pattern: `v*`)
+
+**Key Actions**:
+- Updates `pyproject.toml` version to match the tag
+- Creates GitHub release using semantic-release
+- Commits version update to main branch
+
+**Key Steps**:
+1. **Extract Version**: Gets version number from the pushed tag
+2. **Update Project Version**: Synchronizes `pyproject.toml` version with tag
+3. **Create Release**: Uses semantic-release to generate GitHub release
+4. **Commit Changes**: Commits version update to main branch
 
 ## Workflow Dependencies and Flow
 
 ```mermaid
 graph TD
     A[Dev Branch Work] --> B[PR to Main]
-    B --> C[prerelease.yml]
+    B --> C[prerelease.yml - Tests & Tag Creation]
     C --> D[Version Tag Created on Source Branch]
-    D --> E[PR Title Updated]
+    D --> E[PR Title Updated & Commented]
     E --> F[PR Merged to Main]
-    F --> G[release.yml - Test Job]
-    G --> H[release.yml - Release Job]
-    H --> I[Sync Tags from Dev]
+    F --> G[tag-sync.yml - Tag Synchronization]
+    G --> H[Tag Moved to Main Branch]
+    H --> I[release.yml Triggered]
     I --> J[Update pyproject.toml Version]
     J --> K[Create GitHub Release]
 ```
@@ -117,14 +130,14 @@ exclude_commit_patterns = ["chore:", "ci:", "test:", "docs:", "style:"]
 
 ### 1. Normal Feature Releases
 1. Develop features on `dev` branch
-2. Open PR to `main` with "release" in the title → triggers version determination and tag creation
+2. Open PR to `main` with "release" in the title → triggers `prerelease.yml` (tests, version determination, tag creation)
 3. Review and test the changes
-4. Merge PR → triggers release workflow that syncs tags and creates GitHub release
+4. Merge PR → triggers `tag-sync.yml` (moves tag to main) → triggers `release.yml` (creates GitHub release)
 
 ### 2. Hotfix Releases (Direct to Main)
-1. Make hotfix commit directly to `main` branch
-2. Release workflow will find the latest tag and create release
-3. Manual version tag creation may be needed for hotfixes
+1. Create version tag manually on `main` branch
+2. Push tag → triggers `release.yml` directly to create GitHub release
+3. No tag synchronization needed for direct main branch tags
 
 ## Permissions
 
@@ -146,17 +159,18 @@ Workflows use these permissions:
 - **Draft Handling**: Skips processing for draft PRs
 
 ### Testing Integration
-- **Multi-Python Testing**: Tests against Python 3.11 and 3.12
-- **Julia Integration**: Sets up Julia environment and installs PkgTemplates.jl
-- **Type Checking**: Runs pyright for static type analysis
-- **Release Gating**: Release only proceeds if all tests pass
+- **Testing in PR Phase**: Tests run during `prerelease.yml` before tag creation
+- **Python Testing**: Tests against Python 3.11 using pytest
+- **Type Checking**: Runs pyright for static type analysis on src/juliapkgtemplates/
+- **Early Validation**: Tests must pass before version tags are created
 
 ## Error Handling
 
-- **No Version Changes**: Workflow skips release if no version tags found
-- **Failed Tests**: Release job depends on test job success
-- **Tag Conflicts**: Uses latest tag for version synchronization
-- **Permission Issues**: Uses `secrets.GITHUB_TOKEN` with appropriate scopes
+- **No Version Changes**: `prerelease.yml` skips tag creation if no version change detected
+- **Failed Tests**: Tag creation only proceeds if tests pass in `prerelease.yml`
+- **Tag Conflicts**: `tag-sync.yml` uses latest tag for synchronization
+- **Tag Movement**: Tags are safely deleted and recreated during synchronization
+- **Chore Commits**: `tag-sync.yml` skips for chore/ci commits to avoid unnecessary processing
 
 ## Best Practices
 
@@ -175,14 +189,20 @@ Workflows use these permissions:
 
 ### Debug Commands
 ```bash
-# Check latest tags
-git tag --sort=version:refname | tail -5
+# Check latest tags and their commits
+git tag -l "v*" --sort=-version:refname | head -5
+git show --format="%H %s" $(git tag -l "v*" --sort=-version:refname | head -1)
 
 # Verify version in pyproject.toml
 grep version pyproject.toml
 
 # Test semantic-release version detection
 uv run semantic-release version --print
+
+# Check workflow run history
+gh run list --workflow=prerelease.yml
+gh run list --workflow=tag-sync.yml
+gh run list --workflow=release.yml
 ```
 
 ## PyPI Publishing
