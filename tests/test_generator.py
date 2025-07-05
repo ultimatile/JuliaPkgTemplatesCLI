@@ -209,6 +209,25 @@ class TestJuliaPackageGenerator:
         content = mise_file.read_text()
         assert package_name in content
 
+    def test_add_mise_config_custom_filename(self, temp_dir):
+        """Test mise config generation with custom filename"""
+        generator = JuliaPackageGenerator()
+        package_name = "TestPackage"
+        package_dir = temp_dir / package_name
+        package_dir.mkdir()
+
+        generator._add_mise_config(package_dir, package_name, "mise")
+
+        mise_file = package_dir / "mise.toml"
+        assert mise_file.exists()
+
+        content = mise_file.read_text()
+        assert package_name in content
+
+        # Ensure the default file was not created
+        default_file = package_dir / ".mise.toml"
+        assert not default_file.exists()
+
     def test_check_dependencies_all_available(self):
         """Test dependency check when all are available"""
         with patch("subprocess.run") as mock_run:
@@ -269,6 +288,37 @@ class TestJuliaPackageGenerator:
             assert result == package_dir
             # Check that mise config was added
             assert (package_dir / ".mise.toml").exists()
+
+    def test_create_package_with_custom_mise_filename(self, temp_dir):
+        """Test package creation with custom mise filename"""
+        generator = JuliaPackageGenerator()
+
+        config = PackageConfig(
+            template="minimal",
+            license_type="MIT",
+            plugin_options={"Git": {"manifest": False}},
+            mise_filename_base="mise",
+        )
+
+        with patch.object(generator, "_call_julia_generator") as mock_call:
+            package_dir = temp_dir / "TestPackage"
+            package_dir.mkdir()
+            mock_call.return_value = package_dir
+
+            result = generator.create_package(
+                "TestPackage",
+                "Test Author",
+                "testuser",
+                "test@example.com",
+                temp_dir,
+                config,
+            )
+
+            assert result == package_dir
+            # Check that custom mise config was added
+            assert (package_dir / "mise.toml").exists()
+            # Check that default mise config was not created
+            assert not (package_dir / ".mise.toml").exists()
 
     def test_create_package_output_dir_creation(self, temp_dir):
         """Test that output directory is created if it doesn't exist"""
@@ -458,3 +508,20 @@ class TestPackageConfig:
         assert config.template == "minimal"
         assert not hasattr(config, "unknown_key")
         assert not hasattr(config, "another_unknown")
+
+    def test_from_dict_with_mise_filename_base(self):
+        """Test creating PackageConfig with mise_filename_base"""
+        config_dict = {
+            "template": "standard",
+            "mise_filename_base": "mise",
+        }
+
+        config = PackageConfig.from_dict(config_dict)
+
+        assert config.template == "standard"
+        assert config.mise_filename_base == "mise"
+
+    def test_default_mise_filename_base(self):
+        """Test that default mise_filename_base is '.mise'"""
+        config = PackageConfig()
+        assert config.mise_filename_base == ".mise"
