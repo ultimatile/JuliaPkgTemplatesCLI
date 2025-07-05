@@ -41,22 +41,47 @@ jobs:
         run: |
           uv sync --group dev
 
+      - name: Run tests
+        run: |
+          uv run pytest -v
+
       - name: Get next version
         id: get_version
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
           
+          # Get the base branch and source branch for proper version calculation
+          BASE_BRANCH="${{ github.base_ref }}"
+          SOURCE_BRANCH="${{ github.head_ref }}"
+          
+          echo "::notice::Analyzing commits from $BASE_BRANCH to $SOURCE_BRANCH"
+          
+          # Fetch base branch for comparison
+          git fetch origin $BASE_BRANCH:$BASE_BRANCH
+          
+          # Get the current version from the main branch
+          CURRENT_VERSION=$(git show origin/$BASE_BRANCH:pyproject.toml | grep '^version = ' | cut -d'"' -f2)
+          echo "::notice::Current version on $BASE_BRANCH: $CURRENT_VERSION"
+          
+          # Create temporary merge commit to simulate the merge for semantic-release analysis
+          git checkout -b temp-merge-$GITHUB_RUN_ID
+          git merge origin/$BASE_BRANCH --no-edit
+          
           # Use semantic-release to get next version without creating tags
           NEXT_VERSION=$(uv run semantic-release version --print 2>/dev/null || echo "")
           
-          if [ -n "$NEXT_VERSION" ]; then
+          # Clean up temporary branch
+          git checkout $SOURCE_BRANCH
+          git branch -D temp-merge-$GITHUB_RUN_ID
+          
+          if [ -n "$NEXT_VERSION" ] && [ "$NEXT_VERSION" != "$CURRENT_VERSION" ]; then
             echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
             echo "has_version=true" >> $GITHUB_OUTPUT
             echo "::notice::Next version will be: $NEXT_VERSION"
           else
             echo "has_version=false" >> $GITHUB_OUTPUT
-            echo "::notice::No version change detected"
+            echo "::notice::No version change detected (current: $CURRENT_VERSION, calculated: $NEXT_VERSION)"
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
