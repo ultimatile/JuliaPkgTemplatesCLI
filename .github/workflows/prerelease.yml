@@ -69,7 +69,15 @@ jobs:
           echo "::notice::Current version on $BASE_BRANCH: $CURRENT_VERSION"
           
           # Use semantic-release to get next version directly on dev branch
-          NEXT_VERSION=$(uv run semantic-release version --print 2>/dev/null || echo "")
+          echo "Debug: Current git tags:"
+          git tag -l "v*" --sort=-version:refname | head -5
+          echo "Debug: Current branch and commit:"
+          git branch --show-current
+          git log --oneline -3
+          
+          echo "Debug: Running semantic-release..."
+          NEXT_VERSION=$(uv run semantic-release version --print || echo "ERROR")
+          echo "Debug: semantic-release returned: '$NEXT_VERSION'"
           
           if [ -n "$NEXT_VERSION" ] && [ "$NEXT_VERSION" != "$CURRENT_VERSION" ]; then
             echo "next_version=$NEXT_VERSION" >> $GITHUB_OUTPUT
