@@ -41,6 +41,10 @@ jobs:
         run: |
           uv sync --group dev
 
+      - name: Run tests
+        run: |
+          uv run pytest -v
+
       - name: Get next version
         id: get_version
         run: |
