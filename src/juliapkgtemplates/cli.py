@@ -8,6 +8,7 @@ from pathlib import Path
 from typing import Optional
 
 import click
+from jinja2 import Environment, PackageLoader
 
 from .generator import JuliaPackageGenerator, PackageConfig
 
@@ -195,6 +196,13 @@ def parse_plugin_option_value(value_str: str):
         return value_str
 
 
+def ensure_list(value):
+    """Normalize value to a list for consistent iteration"""
+    if isinstance(value, (list, tuple)):
+        return value
+    return [value]
+
+
 def parse_multiple_key_value_pairs(option_string: str) -> dict:
     """Extract configuration options from space-separated key=value format"""
     options = {}
@@ -230,7 +238,6 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
     for part in parts:
         if "=" in part:
             key, value = part.split("=", 1)
-            # Remove quotes from value if present
             value = value.strip()
             if (value.startswith('"') and value.endswith('"')) or (
                 value.startswith("'") and value.endswith("'")
@@ -258,11 +265,16 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
     }
 
     for option_key, plugin_name in option_to_plugin.items():
-        # Handle single string with multiple key=value pairs
         if option_key in kwargs and kwargs[option_key]:
-            options = parse_multiple_key_value_pairs(kwargs[option_key])
-            if options:
-                plugin_options[plugin_name] = options
+            option_values = ensure_list(kwargs[option_key])
+
+            for option_string in option_values:
+                if option_string:
+                    options = parse_multiple_key_value_pairs(option_string)
+                    if options:
+                        if plugin_name not in plugin_options:
+                            plugin_options[plugin_name] = {}
+                        plugin_options[plugin_name].update(options)
 
     return plugin_options
 
@@ -290,7 +302,7 @@ def create_dynamic_plugin_options(cmd):
         help_text = f"Set {plugin} plugin options as space-separated key=value pairs (e.g., 'manifest=false ssh=true')"
 
         def add_option(plugin_name=plugin, opt_name=option_name):
-            return click.option(opt_name, help=help_text)
+            return click.option(opt_name, multiple=True, help=help_text)
 
         cmd = add_option()(cmd)
 
@@ -313,7 +325,6 @@ def main():
     "--output-dir",
     "-o",
     type=click.Path(),
-    default=".",
     help="Output directory (default: current directory)",
 )
 @click.option(
@@ -332,13 +343,20 @@ def main():
 )
 @click.option(
     "--julia-version",
-    help='Julia version constraint (e.g., v"1.10.9") for Template constructor',
+    help='Julia version constraint (e.g., "1.10.9") for Template constructor',
 )
 @click.option(
     "--dry-run",
     is_flag=True,
     default=False,
     help="Show what Julia Template function would be executed without actually running it",
+)
+@click.option(
+    "--verbose",
+    "-v",
+    is_flag=True,
+    default=False,
+    help="Enable verbose output for debugging",
 )
 @create_dynamic_plugin_options
 @click.pass_context
@@ -348,11 +366,12 @@ def create(
     author: Optional[str],
     user: Optional[str],
     mail: Optional[str],
-    output_dir: str,
+    output_dir: Optional[str],
     template: Optional[str],
     license: Optional[str],
     julia_version: Optional[str],
     dry_run: bool,
+    verbose: bool,
     **kwargs,
 ):
     """Create a new Julia package"""
@@ -386,6 +405,7 @@ def create(
     final_author = author or defaults.get("author")
     final_user = user or defaults.get("user")
     final_mail = mail or defaults.get("mail")
+    final_output_dir = output_dir or defaults.get("output_dir", ".")
 
     # Display configuration being used
     click.echo(f"Author: {final_author}")
@@ -436,7 +456,7 @@ def create(
             final_author,
             final_user,
             final_mail,
-            Path(output_dir),
+            Path(final_output_dir),
             package_config,
         )
         click.echo("Would execute the following Julia code:")
@@ -451,8 +471,9 @@ def create(
             final_author,
             final_user,
             final_mail,
-            Path(output_dir),
+            Path(final_output_dir),
             package_config,
+            verbose=verbose,
         )
         click.echo(f"Package '{package_name}' created successfully at {package_dir}")
     except Exception as e:
@@ -559,7 +580,7 @@ def completion(shell: str):
 
 
 def generate_fish_completion() -> str:
-    """Generate fish completion script for jtc command"""
+    """Generate fish completion script for jtc command using Jinja2 template"""
     # Get available plugins and licenses dynamically
     plugins = " ".join(JuliaPackageGenerator.KNOWN_PLUGINS)
     licenses = " ".join(JuliaPackageGenerator.LICENSE_MAPPING.keys())
@@ -584,58 +605,35 @@ def generate_fish_completion() -> str:
             continue  # License is handled separately
 
         option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
+        # Fish expects option names without the CLI prefix
+        fish_option = option_name[2:]
         plugin_options.append(
-            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {option_name[2:]} -d "{plugin} plugin options (space-separated key=value pairs)"'
+            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {fish_option} -d "{plugin} plugin options (space-separated key=value pairs)"'
         )
 
-    plugin_options_str = "\n".join(plugin_options)
+    # Generate config command plugin options
+    config_plugin_options = []
+    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+        if plugin == "License":
+            continue  # License is handled separately
 
-    completion_script = f'''# Fish completion for jtc (JuliaPkgTemplatesCLI)
+        option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
+        # Fish expects option names without the CLI prefix
+        fish_option = option_name[2:]
+        config_plugin_options.append(
+            f'complete -c jtc -n "__fish_seen_subcommand_from config" -l {fish_option} -d "Set default {plugin} plugin options (space-separated key=value pairs)"'
+        )
 
-# Main command completions
-complete -c jtc -f
+    # Load and render template
+    env = Environment(loader=PackageLoader("juliapkgtemplates", "templates"))
+    template = env.get_template("fish_completion.j2")
 
-# Subcommands
-complete -c jtc -n "__fish_use_subcommand" -a "create" -d "Create a new Julia package"
-complete -c jtc -n "__fish_use_subcommand" -a "config" -d "Configuration management"
-complete -c jtc -n "__fish_use_subcommand" -a "plugin-info" -d "Show information about plugins"
-complete -c jtc -n "__fish_use_subcommand" -a "completion" -d "Generate shell completion script"
-
-# Global options
-complete -c jtc -l help -d "Show help message"
-complete -c jtc -l version -d "Show version"
-
-# create command options
-complete -c jtc -n "__fish_seen_subcommand_from create" -s a -l author -d "Author name for the package"
-complete -c jtc -n "__fish_seen_subcommand_from create" -s u -l user -d "Git hosting username"
-complete -c jtc -n "__fish_seen_subcommand_from create" -s m -l mail -d "Email address for package metadata"
-complete -c jtc -n "__fish_seen_subcommand_from create" -s o -l output-dir -d "Output directory" -F
-complete -c jtc -n "__fish_seen_subcommand_from create" -s t -l template -d "Template type" -a "minimal standard full"
-complete -c jtc -n "__fish_seen_subcommand_from create" -l license -d "License type" -a "{licenses}"
-complete -c jtc -n "__fish_seen_subcommand_from create" -l julia-version -d "Julia version constraint"  
-complete -c jtc -n "__fish_seen_subcommand_from create" -l dry-run -d "Show what would be executed without running"
-
-# Plugin options for create command (dynamically generated)
-{plugin_options_str}
-
-# config command and subcommands
-complete -c jtc -n "__fish_seen_subcommand_from config" -a "show" -d "Display current configuration values"
-complete -c jtc -n "__fish_seen_subcommand_from config" -a "set" -d "Set configuration values"
-
-# config command options (for direct invocation and set subcommand)
-complete -c jtc -n "__fish_seen_subcommand_from config" -l author -d "Set default author"
-complete -c jtc -n "__fish_seen_subcommand_from config" -l user -d "Set default user"  
-complete -c jtc -n "__fish_seen_subcommand_from config" -l mail -d "Set default mail"
-complete -c jtc -n "__fish_seen_subcommand_from config" -l license -d "Set default license" -a "{licenses}"
-complete -c jtc -n "__fish_seen_subcommand_from config" -l template -d "Set default template" -a "minimal standard full"
-
-# plugin-info command - complete with available plugin names (dynamically generated)
-complete -c jtc -n "__fish_seen_subcommand_from plugin-info" -a "{plugins}" -d "Plugin name"
-
-# completion command options  
-complete -c jtc -n "__fish_seen_subcommand_from completion" -l shell -d "Shell type" -a "fish"
-'''
-    return completion_script
+    return template.render(
+        plugins=plugins,
+        licenses=licenses,
+        plugin_options=plugin_options,
+        config_plugin_options=config_plugin_options,
+    )
 
 
 @main.group(invoke_without_command=True)
@@ -644,6 +642,9 @@ complete -c jtc -n "__fish_seen_subcommand_from completion" -l shell -d "Shell t
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
 @click.option("--template", help="Set default template")
+@click.option(
+    "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
+)
 @create_dynamic_plugin_options
 @click.pass_context
 def config(
@@ -653,6 +654,7 @@ def config(
     mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
+    julia_version: Optional[str],
     **kwargs,
 ):
     """Configuration management"""
@@ -665,6 +667,7 @@ def config(
                 mail is not None,
                 license is not None,
                 template is not None,
+                julia_version is not None,
             ]
         )
 
@@ -674,7 +677,7 @@ def config(
 
         if has_config_options or has_plugin_options:
             # Options provided, delegate to set functionality
-            _set_config(author, user, mail, license, template, **kwargs)
+            _set_config(author, user, mail, license, template, julia_version, **kwargs)
         else:
             # No options provided, show config as default
             _show_config()
@@ -694,8 +697,14 @@ def _show_config():
         click.echo("No configuration set")
         return
 
-    # Display basic configuration
-    basic_config_keys = {"author", "user", "mail", "license_type", "template"}
+    basic_config_keys = {
+        "author",
+        "user",
+        "mail",
+        "license_type",
+        "template",
+        "julia_version",
+    }
     basic_config = {}
     plugin_config = {}
 
@@ -703,10 +712,8 @@ def _show_config():
         if key in basic_config_keys:
             basic_config[key] = value
         elif isinstance(value, dict):
-            # This is a plugin section in nested structure
             plugin_config[key] = value
 
-    # Display basic configuration
     for key, value in basic_config.items():
         if value is not None:
             click.echo(f"{key}: {repr(value)}")
@@ -726,6 +733,7 @@ def _set_config(
     mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
+    julia_version: Optional[str],
     **kwargs,
 ):
     """Set configuration values (shared logic)"""
@@ -758,6 +766,10 @@ def _set_config(
         config_data["default"]["template"] = template
         click.echo(f"Set default template: {template}")
         updated = True
+    if julia_version is not None:
+        config_data["default"]["julia_version"] = julia_version
+        click.echo(f"Set default julia_version: {julia_version}")
+        updated = True
 
     # Process plugin options - save in nested structure
     for plugin_name, options in plugin_options.items():
@@ -787,6 +799,9 @@ def show():
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
 @click.option("--template", help="Set default template")
+@click.option(
+    "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
+)
 @create_dynamic_plugin_options
 def set(
     author: Optional[str],
@@ -794,10 +809,11 @@ def set(
     mail: Optional[str],
     license: Optional[str],
     template: Optional[str],
+    julia_version: Optional[str],
     **kwargs,
 ):
     """Set configuration values"""
-    _set_config(author, user, mail, license, template, **kwargs)
+    _set_config(author, user, mail, license, template, julia_version, **kwargs)
 
 
 if __name__ == "__main__":

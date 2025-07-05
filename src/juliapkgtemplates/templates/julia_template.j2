@@ -1,0 +1,37 @@
+#!/usr/bin/env julia
+
+using PkgTemplates
+using LibGit2: GitError
+
+println("Loading PkgTemplates.jl...")
+try
+    println("Creating package: {{ package_name }}")
+{% if author %}    println("Author: {{ author }}")
+{% endif %}{% if user %}    println("User: {{ user }}")
+{% endif %}{% if mail %}    println("Mail: {{ mail }}")
+{% endif %}    println("Output directory: {{ output_dir }}")
+    println("Plugins: {{ plugins|length }} plugins configured")
+{% if julia_version %}    println("Julia version: {{ julia_version }}")
+{% endif %}
+    t = Template(;
+        dir="{{ output_dir }}",
+{% if author and mail %}        authors=["{{ author }} <{{ mail }}>"],
+{% elif author %}        authors=["{{ author }}"],
+{% endif %}{% if user %}        user="{{ user }}",
+{% endif %}{% if julia_version %}        julia=v"{{ julia_version.lstrip('v') }}",
+{% endif %}        plugins=[{{ plugins|join(', ') }}]
+    )
+
+    package_dir = t("{{ package_name }}")
+    println("Package created successfully at: $package_dir")
+
+catch e
+    println("Error creating package: $e")
+    if isa(e, GitError)
+        println("Git error details: $(e.msg)")
+        println("Git error code: $(e.code)")
+        println("Git error class: $(e.class)")
+    end
+    showerror(stdout, e, catch_backtrace())
+    rethrow(e)
+end
