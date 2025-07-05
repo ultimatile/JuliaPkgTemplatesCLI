@@ -1,0 +1,58 @@
+name: Tag Sync
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  sync-tags:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Sync tags from dev to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          
+          # Fetch all tags
+          git fetch --tags
+          
+          # Find the latest version tag
+          LATEST_TAG=$(git tag -l "v*" --sort=-version:refname | head -n1)
+          
+          if [ -z "$LATEST_TAG" ]; then
+            echo "No version tags found"
+            exit 0
+          fi
+          
+          echo "Latest tag found: $LATEST_TAG"
+          
+          # Check if this tag points to current main branch commit
+          TAG_COMMIT=$(git rev-list -n 1 "$LATEST_TAG")
+          MAIN_COMMIT=$(git rev-parse HEAD)
+          
+          if [ "$TAG_COMMIT" != "$MAIN_COMMIT" ]; then
+            echo "Moving tag $LATEST_TAG from $TAG_COMMIT to $MAIN_COMMIT"
+            
+            # Delete old tag locally and remotely
+            git tag -d "$LATEST_TAG"
+            git push origin ":refs/tags/$LATEST_TAG"
+            
+            # Create new tag on main branch current commit
+            git tag "$LATEST_TAG"
+            git push origin "$LATEST_TAG"
+            
+            echo "Tag $LATEST_TAG synced to main branch"
+          else
+            echo "Tag $LATEST_TAG already points to main branch"
+          fi
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
