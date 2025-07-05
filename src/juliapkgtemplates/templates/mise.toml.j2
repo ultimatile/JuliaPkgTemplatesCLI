@@ -18,11 +18,11 @@ description = "Update package dependencies"
 run = "julia --project='{{ "{{" }} env.JULIA_PROJECT {{ "}}" }}' -e 'using Pkg; Pkg.update()'"
 
 [tasks.add]
-description = "Add a package dependency (usage: mise run add -- PackageName)"
+description = "Add a package dependency (usage: mise run add PackageName)"
 run = "julia --project='{{ "{{" }} env.JULIA_PROJECT {{ "}}" }}' -e 'using Pkg; Pkg.add(ARGS)' --"
 
 [tasks.rm]
-description = "Remove a package dependency (usage: mise run rm -- PackageName)"
+description = "Remove a package dependency (usage: mise run rm PackageName)"
 run = "julia --project='{{ "{{" }} env.JULIA_PROJECT {{ "}}" }}' -e 'using Pkg; Pkg.rm(ARGS)' --"
 
 [tasks.status]
@@ -39,7 +39,7 @@ description = "Build the package"
 run = "julia --project='{{ "{{" }} env.JULIA_PROJECT {{ "}}" }}' -e 'using Pkg; Pkg.build()'"
 
 [tasks.dev]
-description = "Start development mode (usage: mise run dev -- PackageName)"
+description = "Start development mode (usage: mise run dev PackageName)"
 run = "julia --project='{{ "{{" }} env.JULIA_PROJECT {{ "}}" }}' -e 'using Pkg; Pkg.develop(ARGS)' --"
 
 [tasks.repl]
