@@ -22,7 +22,7 @@ complete -c jtc -n "__fish_seen_subcommand_from create" -s t -l template -d "Tem
 complete -c jtc -n "__fish_seen_subcommand_from create" -l license -d "License type" -a "{{ licenses }}"
 complete -c jtc -n "__fish_seen_subcommand_from create" -l julia-version -d "Julia version constraint (e.g., 1.10.9)"  
 complete -c jtc -n "__fish_seen_subcommand_from create" -l dry-run -d "Show what would be executed without running"
-complete -c jtc -n "__fish_seen_subcommand_from create" -l verbose -d "Enable verbose output for debugging"
+complete -c jtc -n "__fish_seen_subcommand_from create" -s v -l verbose -d "Enable verbose output for debugging"
 complete -c jtc -n "__fish_seen_subcommand_from create" -l mise-filename-base -d "Base name for mise config file"
 complete -c jtc -n "__fish_seen_subcommand_from create" -l with-mise -d "Enable mise task file generation"
 complete -c jtc -n "__fish_seen_subcommand_from create" -l no-mise -d "Disable mise task file generation"
