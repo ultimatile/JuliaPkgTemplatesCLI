@@ -196,6 +196,13 @@ def parse_plugin_option_value(value_str: str):
         return value_str
 
 
+def ensure_list(value):
+    """Normalize value to a list for consistent iteration"""
+    if isinstance(value, (list, tuple)):
+        return value
+    return [value]
+
+
 def parse_multiple_key_value_pairs(option_string: str) -> dict:
     """Extract configuration options from space-separated key=value format"""
     options = {}
@@ -231,7 +238,6 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
     for part in parts:
         if "=" in part:
             key, value = part.split("=", 1)
-            # Remove quotes from value if present
             value = value.strip()
             if (value.startswith('"') and value.endswith('"')) or (
                 value.startswith("'") and value.endswith("'")
@@ -259,18 +265,13 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
     }
 
     for option_key, plugin_name in option_to_plugin.items():
-        # Handle multiple strings with key=value pairs (due to multiple=True)
         if option_key in kwargs and kwargs[option_key]:
-            option_values = kwargs[option_key]
-            # kwargs[option_key] is now a tuple due to multiple=True
-            if not isinstance(option_values, (list, tuple)):
-                option_values = [option_values]
+            option_values = ensure_list(kwargs[option_key])
 
             for option_string in option_values:
-                if option_string:  # Skip empty strings
+                if option_string:
                     options = parse_multiple_key_value_pairs(option_string)
                     if options:
-                        # Use key-level merge across multiple --plugin arguments
                         if plugin_name not in plugin_options:
                             plugin_options[plugin_name] = {}
                         plugin_options[plugin_name].update(options)
@@ -604,7 +605,7 @@ def generate_fish_completion() -> str:
             continue  # License is handled separately
 
         option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
-        # Remove -- prefix for fish completion
+        # Fish expects option names without the CLI prefix
         fish_option = option_name[2:]
         plugin_options.append(
             f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {fish_option} -d "{plugin} plugin options (space-separated key=value pairs)"'
@@ -617,7 +618,7 @@ def generate_fish_completion() -> str:
             continue  # License is handled separately
 
         option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
-        # Remove -- prefix for fish completion
+        # Fish expects option names without the CLI prefix
         fish_option = option_name[2:]
         config_plugin_options.append(
             f'complete -c jtc -n "__fish_seen_subcommand_from config" -l {fish_option} -d "Set default {plugin} plugin options (space-separated key=value pairs)"'
@@ -696,7 +697,6 @@ def _show_config():
         click.echo("No configuration set")
         return
 
-    # Display basic configuration
     basic_config_keys = {
         "author",
         "user",
@@ -712,10 +712,8 @@ def _show_config():
         if key in basic_config_keys:
             basic_config[key] = value
         elif isinstance(value, dict):
-            # This is a plugin section in nested structure
             plugin_config[key] = value
 
-    # Display basic configuration
     for key, value in basic_config.items():
         if value is not None:
             click.echo(f"{key}: {repr(value)}")
