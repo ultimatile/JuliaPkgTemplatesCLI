@@ -137,8 +137,8 @@ class JuliaPackageGenerator:
         # Initialize Jinja2 environment
         self.jinja_env = Environment(
             loader=FileSystemLoader(str(self.templates_dir)),
-            trim_blocks=True,
-            lstrip_blocks=True,
+            trim_blocks=False,
+            lstrip_blocks=False,
         )
 
     def _map_license(self, license_name: str) -> str:

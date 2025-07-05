@@ -6,19 +6,20 @@ using LibGit2: GitError
 println("Loading PkgTemplates.jl...")
 try
     println("Creating package: {{ package_name }}")
-    {% if author %}println("Author: {{ author }}"){% endif %}
-    {% if user %}println("User: {{ user }}"){% endif %}
-    {% if mail %}println("Mail: {{ mail }}"){% endif %}
-    println("Output directory: {{ output_dir }}")
+{% if author %}    println("Author: {{ author }}")
+{% endif %}{% if user %}    println("User: {{ user }}")
+{% endif %}{% if mail %}    println("Mail: {{ mail }}")
+{% endif %}    println("Output directory: {{ output_dir }}")
     println("Plugins: {{ plugins|length }} plugins configured")
-    {% if julia_version %}println("Julia version: {{ julia_version }}"){% endif %}
-
+{% if julia_version %}    println("Julia version: {{ julia_version }}")
+{% endif %}
     t = Template(;
         dir="{{ output_dir }}",
-        {% if author and mail %}authors=["{{ author }} <{{ mail }}>"],{% elif author %}authors=["{{ author }}"],{% endif %}
-        {% if user %}user="{{ user }}",{% endif %}
-        {% if julia_version %}julia=v"{{ julia_version.lstrip('v') }}",{% endif %}
-        plugins=[{{ plugins|join(', ') }}]
+{% if author and mail %}        authors=["{{ author }} <{{ mail }}>"],
+{% elif author %}        authors=["{{ author }}"],
+{% endif %}{% if user %}        user="{{ user }}",
+{% endif %}{% if julia_version %}        julia=v"{{ julia_version.lstrip('v') }}",
+{% endif %}        plugins=[{{ plugins|join(', ') }}]
     )
 
     package_dir = t("{{ package_name }}")
