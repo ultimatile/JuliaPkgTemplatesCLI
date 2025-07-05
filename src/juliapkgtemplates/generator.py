@@ -32,6 +32,7 @@ class PackageConfig:
     julia_version: Optional[str] = None
     plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     mise_filename_base: str = ".mise"
+    with_mise: bool = True
 
     @classmethod
     def from_dict(cls, config_dict: Optional[Dict[str, Any]] = None) -> "PackageConfig":
@@ -207,7 +208,8 @@ class JuliaPackageGenerator:
             verbose,
         )
 
-        self._add_mise_config(package_dir, package_name, cfg.mise_filename_base)
+        if cfg.with_mise:
+            self._add_mise_config(package_dir, package_name, cfg.mise_filename_base)
 
         return package_dir
 

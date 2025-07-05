@@ -22,6 +22,10 @@ complete -c jtc -n "__fish_seen_subcommand_from create" -s t -l template -d "Tem
 complete -c jtc -n "__fish_seen_subcommand_from create" -l license -d "License type" -a "{{ licenses }}"
 complete -c jtc -n "__fish_seen_subcommand_from create" -l julia-version -d "Julia version constraint (e.g., 1.10.9)"  
 complete -c jtc -n "__fish_seen_subcommand_from create" -l dry-run -d "Show what would be executed without running"
+complete -c jtc -n "__fish_seen_subcommand_from create" -l verbose -d "Enable verbose output for debugging"
+complete -c jtc -n "__fish_seen_subcommand_from create" -l mise-filename-base -d "Base name for mise config file"
+complete -c jtc -n "__fish_seen_subcommand_from create" -l with-mise -d "Enable mise task file generation"
+complete -c jtc -n "__fish_seen_subcommand_from create" -l no-mise -d "Disable mise task file generation"
 
 # Plugin options for create command (dynamically generated)
 {% for plugin_option in plugin_options -%}
@@ -29,8 +33,8 @@ complete -c jtc -n "__fish_seen_subcommand_from create" -l dry-run -d "Show what
 {% endfor %}
 
 # config command and subcommands (only when no config options are specified)
-complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template julia-version git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "show" -d "Display current configuration values"
-complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template julia-version git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "set" -d "Set configuration values"
+complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template julia-version mise-filename-base with-mise no-mise git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "show" -d "Display current configuration values"
+complete -c jtc -n "__fish_seen_subcommand_from config; and not __fish_contains_opt author user mail license template julia-version mise-filename-base with-mise no-mise git tests formatter project-file github-actions codecov documenter tagbot compat-helper" -a "set" -d "Set configuration values"
 
 # config command options (for direct invocation and set subcommand)
 complete -c jtc -n "__fish_seen_subcommand_from config" -l author -d "Set default author"
@@ -39,6 +43,9 @@ complete -c jtc -n "__fish_seen_subcommand_from config" -l mail -d "Set default 
 complete -c jtc -n "__fish_seen_subcommand_from config" -l license -d "Set default license" -a "{{ licenses }}"
 complete -c jtc -n "__fish_seen_subcommand_from config" -l template -d "Set default template" -a "minimal standard full"
 complete -c jtc -n "__fish_seen_subcommand_from config" -l julia-version -d "Set default Julia version constraint (e.g., 1.10.9)"
+complete -c jtc -n "__fish_seen_subcommand_from config" -l mise-filename-base -d "Set default base name for mise config file"
+complete -c jtc -n "__fish_seen_subcommand_from config" -l with-mise -d "Set default mise task file generation to enabled"
+complete -c jtc -n "__fish_seen_subcommand_from config" -l no-mise -d "Set default mise task file generation to disabled"
 
 # Plugin options for config command (dynamically generated)
 {% for config_plugin_option in config_plugin_options -%}
