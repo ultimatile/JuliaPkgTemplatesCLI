@@ -31,6 +31,7 @@ class PackageConfig:
     license_type: Optional[str] = None
     julia_version: Optional[str] = None
     plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    mise_filename_base: str = ".mise"
 
     @classmethod
     def from_dict(cls, config_dict: Optional[Dict[str, Any]] = None) -> "PackageConfig":
@@ -206,7 +207,7 @@ class JuliaPackageGenerator:
             verbose,
         )
 
-        self._add_mise_config(package_dir, package_name)
+        self._add_mise_config(package_dir, package_name, cfg.mise_filename_base)
 
         return package_dir
 
@@ -538,13 +539,19 @@ class JuliaPackageGenerator:
                 "Julia not found. Please install Julia and ensure it's in your PATH."
             )
 
-    def _add_mise_config(self, package_dir: Path, package_name: str) -> None:
+    def _add_mise_config(
+        self, package_dir: Path, package_name: str, mise_filename_base: str = ".mise"
+    ) -> None:
         """Add mise configuration to the package"""
         template = self.jinja_env.get_template("mise.toml.j2")
 
-        mise_content = template.render(package_name=package_name, project_dir=".")
+        mise_content = template.render(
+            package_name=package_name,
+            project_dir=".",
+            mise_config_basename=mise_filename_base,
+        )
 
-        mise_file = package_dir / ".mise.toml"
+        mise_file = package_dir / f"{mise_filename_base}.toml"
         mise_file.write_text(mise_content)
 
     @staticmethod

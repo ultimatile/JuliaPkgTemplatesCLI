@@ -358,6 +358,14 @@ def main():
     default=False,
     help="Enable verbose output for debugging",
 )
+@click.option(
+    "--mise-filename-base",
+    help=get_help_with_default(
+        "Base name for mise config file (e.g., '.mise' creates '.mise.toml', 'mise' creates 'mise.toml')",
+        "mise_filename_base",
+        ".mise",
+    ),
+)
 @create_dynamic_plugin_options
 @click.pass_context
 def create(
@@ -372,6 +380,7 @@ def create(
     julia_version: Optional[str],
     dry_run: bool,
     verbose: bool,
+    mise_filename_base: Optional[str],
     **kwargs,
 ):
     """Create a new Julia package"""
@@ -406,6 +415,9 @@ def create(
     final_user = user or defaults.get("user")
     final_mail = mail or defaults.get("mail")
     final_output_dir = output_dir or defaults.get("output_dir", ".")
+    final_mise_filename_base = mise_filename_base or defaults.get(
+        "mise_filename_base", ".mise"
+    )
 
     # Display configuration being used
     click.echo(f"Author: {final_author}")
@@ -419,11 +431,12 @@ def create(
         license or defaults.get("license_type") or defaults.get("license")
     )
     final_config["julia_version"] = julia_version or defaults.get("julia_version")
+    final_config["mise_filename_base"] = final_mise_filename_base
 
     # Merge plugin options (CLI overrides config)
     config_plugin_options = defaults.copy()
     # Isolate plugin-specific configuration from general package settings
-    for key in ["template", "license_type", "julia_version"]:
+    for key in ["template", "license_type", "julia_version", "mise_filename_base"]:
         config_plugin_options.pop(key, None)
 
     # Transform dot-notation config keys (e.g., Git.manifest) into nested structure
@@ -645,6 +658,7 @@ def generate_fish_completion() -> str:
 @click.option(
     "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
 )
+@click.option("--mise-filename-base", help="Set default base name for mise config file")
 @create_dynamic_plugin_options
 @click.pass_context
 def config(
@@ -655,6 +669,7 @@ def config(
     license: Optional[str],
     template: Optional[str],
     julia_version: Optional[str],
+    mise_filename_base: Optional[str],
     **kwargs,
 ):
     """Configuration management"""
@@ -668,6 +683,7 @@ def config(
                 license is not None,
                 template is not None,
                 julia_version is not None,
+                mise_filename_base is not None,
             ]
         )
 
@@ -677,7 +693,16 @@ def config(
 
         if has_config_options or has_plugin_options:
             # Options provided, delegate to set functionality
-            _set_config(author, user, mail, license, template, julia_version, **kwargs)
+            _set_config(
+                author,
+                user,
+                mail,
+                license,
+                template,
+                julia_version,
+                mise_filename_base,
+                **kwargs,
+            )
         else:
             # No options provided, show config as default
             _show_config()
@@ -704,6 +729,7 @@ def _show_config():
         "license_type",
         "template",
         "julia_version",
+        "mise_filename_base",
     }
     basic_config = {}
     plugin_config = {}
@@ -734,6 +760,7 @@ def _set_config(
     license: Optional[str],
     template: Optional[str],
     julia_version: Optional[str],
+    mise_filename_base: Optional[str],
     **kwargs,
 ):
     """Set configuration values (shared logic)"""
@@ -770,6 +797,10 @@ def _set_config(
         config_data["default"]["julia_version"] = julia_version
         click.echo(f"Set default julia_version: {julia_version}")
         updated = True
+    if mise_filename_base is not None:
+        config_data["default"]["mise_filename_base"] = mise_filename_base
+        click.echo(f"Set default mise_filename_base: {mise_filename_base}")
+        updated = True
 
     # Process plugin options - save in nested structure
     for plugin_name, options in plugin_options.items():
@@ -802,6 +833,7 @@ def show():
 @click.option(
     "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
 )
+@click.option("--mise-filename-base", help="Set default base name for mise config file")
 @create_dynamic_plugin_options
 def set(
     author: Optional[str],
@@ -810,10 +842,20 @@ def set(
     license: Optional[str],
     template: Optional[str],
     julia_version: Optional[str],
+    mise_filename_base: Optional[str],
     **kwargs,
 ):
     """Set configuration values"""
-    _set_config(author, user, mail, license, template, julia_version, **kwargs)
+    _set_config(
+        author,
+        user,
+        mail,
+        license,
+        template,
+        julia_version,
+        mise_filename_base,
+        **kwargs,
+    )
 
 
 if __name__ == "__main__":
