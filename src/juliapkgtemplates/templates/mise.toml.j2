@@ -51,10 +51,6 @@ run = "julia --project='{{ "{{" }} env.JULIA_PROJECT {{ "}}" }}'"
 description = "Format code using JuliaFormatter"
 run = "julia --project='{{ "{{" }} env.JULIA_PROJECT {{ "}}" }}' -e 'using JuliaFormatter; format(\".\")'"
 
-[tasks.lint]
-description = "Run linting checks"
-run = "julia --project='{{ "{{" }} env.JULIA_PROJECT {{ "}}" }}' -e 'using Pkg; Pkg.test()'"
-
 # Documentation tasks
 [tasks.docs-build]
 description = "Build documentation"
@@ -65,9 +61,6 @@ description = "Serve documentation locally"
 run = "julia --project=docs -e 'using LiveServer; serve(dir=\"docs/build\")'"
 
 # Utility tasks
-[tasks.clean]
-description = "Clean up generated files"
-run = "rm -rf Manifest.toml docs/build"
 
 [tasks.precompile]
 description = "Precompile package"
