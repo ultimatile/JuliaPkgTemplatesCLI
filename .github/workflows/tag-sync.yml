@@ -51,6 +51,9 @@ jobs:
             git push origin "$LATEST_TAG"
             
             echo "Tag $LATEST_TAG synced to main branch"
+            
+            # Trigger release workflow manually since tag deletion/recreation doesn't fire push events
+            gh workflow run release.yml --ref "$LATEST_TAG"
           else
             echo "Tag $LATEST_TAG already points to main branch"
           fi
