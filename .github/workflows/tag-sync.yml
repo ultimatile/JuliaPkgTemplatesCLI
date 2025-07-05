@@ -8,8 +8,11 @@ on:
 jobs:
   sync-tags:
     runs-on: ubuntu-latest
+    # Skip for chore/ci commits to avoid unnecessary tag movements
+    if: "!contains(github.event.head_commit.message, 'chore(ci)') && !contains(github.event.head_commit.message, 'chore:') && !contains(github.event.head_commit.message, 'ci:')"
     permissions:
       contents: write
+      actions: write
 
     steps:
       - uses: actions/checkout@v4
@@ -51,6 +54,9 @@ jobs:
             git push origin "$LATEST_TAG"
             
             echo "Tag $LATEST_TAG synced to main branch"
+            
+            # Trigger release workflow manually since tag deletion/recreation doesn't fire push events
+            gh workflow run release.yml --ref "$LATEST_TAG"
           else
             echo "Tag $LATEST_TAG already points to main branch"
           fi
