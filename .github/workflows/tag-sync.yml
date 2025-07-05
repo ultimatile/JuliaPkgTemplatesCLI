@@ -8,8 +8,11 @@ on:
 jobs:
   sync-tags:
     runs-on: ubuntu-latest
+    # Skip for chore/ci commits to avoid unnecessary tag movements
+    if: "!contains(github.event.head_commit.message, 'chore(ci)') && !contains(github.event.head_commit.message, 'chore:') && !contains(github.event.head_commit.message, 'ci:')"
     permissions:
       contents: write
+      actions: write
 
     steps:
       - uses: actions/checkout@v4
