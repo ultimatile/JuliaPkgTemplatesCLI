@@ -259,11 +259,21 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
     }
 
     for option_key, plugin_name in option_to_plugin.items():
-        # Handle single string with multiple key=value pairs
+        # Handle multiple strings with key=value pairs (due to multiple=True)
         if option_key in kwargs and kwargs[option_key]:
-            options = parse_multiple_key_value_pairs(kwargs[option_key])
-            if options:
-                plugin_options[plugin_name] = options
+            option_values = kwargs[option_key]
+            # kwargs[option_key] is now a tuple due to multiple=True
+            if not isinstance(option_values, (list, tuple)):
+                option_values = [option_values]
+
+            for option_string in option_values:
+                if option_string:  # Skip empty strings
+                    options = parse_multiple_key_value_pairs(option_string)
+                    if options:
+                        # Use key-level merge across multiple --plugin arguments
+                        if plugin_name not in plugin_options:
+                            plugin_options[plugin_name] = {}
+                        plugin_options[plugin_name].update(options)
 
     return plugin_options
 
@@ -291,7 +301,7 @@ def create_dynamic_plugin_options(cmd):
         help_text = f"Set {plugin} plugin options as space-separated key=value pairs (e.g., 'manifest=false ssh=true')"
 
         def add_option(plugin_name=plugin, opt_name=option_name):
-            return click.option(opt_name, help=help_text)
+            return click.option(opt_name, multiple=True, help=help_text)
 
         cmd = add_option()(cmd)
 
