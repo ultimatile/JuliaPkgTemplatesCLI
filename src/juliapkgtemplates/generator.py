@@ -27,12 +27,16 @@ class TemplateConfig:
 class PackageConfig:
     """Configuration for package creation"""
 
-    template: str = "standard"
+    enabled_plugins: List[str] = None
     license_type: Optional[str] = None
     julia_version: Optional[str] = None
     plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     mise_filename_base: str = ".mise"
     with_mise: bool = True
+
+    def __post_init__(self):
+        if self.enabled_plugins is None:
+            self.enabled_plugins = []
 
     @classmethod
     def from_dict(cls, config_dict: Optional[Dict[str, Any]] = None) -> "PackageConfig":
@@ -61,6 +65,17 @@ class PackageConfig:
         # Ensure type safety by filtering to known dataclass fields
         valid_keys = {field.name for field in cls.__dataclass_fields__.values()}
         filtered_dict = {k: v for k, v in regular_config.items() if k in valid_keys}
+
+        # Handle enabled_plugins as a list
+        if "enabled_plugins" in filtered_dict and isinstance(
+            filtered_dict["enabled_plugins"], str
+        ):
+            # Convert comma-separated string to list
+            filtered_dict["enabled_plugins"] = [
+                p.strip()
+                for p in filtered_dict["enabled_plugins"].split(",")
+                if p.strip()
+            ]
 
         # Always set plugin_options (empty dict if no plugin options found)
         filtered_dict["plugin_options"] = plugin_options if plugin_options else {}
@@ -99,38 +114,6 @@ class JuliaPackageGenerator:
         "LGPL3": "LGPL-3.0+",
         "AGPL3": "AGPL-3.0+",
         "EUPL": "EUPL-1.2+",
-    }
-
-    # Template configurations mapping template names to their plugin lists (order preserved)
-    TEMPLATE_CONFIGS = {
-        "minimal": TemplateConfig(
-            plugins=["ProjectFile", "License", "Git", "Formatter", "Tests"]
-        ),
-        "standard": TemplateConfig(
-            plugins=[
-                "ProjectFile",
-                "License",
-                "Git",
-                "Formatter",
-                "Tests",
-                "GitHubActions",
-                "Codecov",
-            ]
-        ),
-        "full": TemplateConfig(
-            plugins=[
-                "ProjectFile",
-                "License",
-                "Git",
-                "Formatter",
-                "Tests",
-                "GitHubActions",
-                "Codecov",
-                "Documenter",
-                "TagBot",
-                "CompatHelper",
-            ]
-        ),
     }
 
     def __init__(self):
@@ -192,7 +175,7 @@ class JuliaPackageGenerator:
         cfg = config if config is not None else PackageConfig()
 
         plugins = self._get_plugins(
-            cfg.template,
+            cfg.enabled_plugins,
             cfg.license_type,
             cfg.plugin_options,
         )
@@ -247,7 +230,7 @@ class JuliaPackageGenerator:
         cfg = config if config is not None else PackageConfig()
 
         plugins = self._get_plugins(
-            cfg.template,
+            cfg.enabled_plugins,
             cfg.license_type,
             cfg.plugin_options,
         )
@@ -258,17 +241,11 @@ class JuliaPackageGenerator:
 
     def _get_plugins(
         self,
-        template: str,
+        enabled_plugins: List[str],
         license_type: Optional[str],
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        """Assemble Julia plugin configuration based on template choice and user overrides"""
-        if template not in self.TEMPLATE_CONFIGS:
-            raise ValueError(
-                f"Unknown template type: {template}. Available: {list(self.TEMPLATE_CONFIGS.keys())}"
-            )
-
-        config = self.TEMPLATE_CONFIGS[template]
+        """Assemble Julia plugin configuration based on explicitly enabled plugins"""
         plugins = []
 
         # Map each plugin type to its configuration builder function
@@ -285,7 +262,7 @@ class JuliaPackageGenerator:
             "CompatHelper": lambda: self._build_compathelper_plugin(plugin_options),
         }
 
-        for plugin_name in config.plugins:
+        for plugin_name in enabled_plugins:
             if plugin_name in plugin_builders:
                 plugin = plugin_builders[plugin_name]()
                 if plugin:  # Exclude disabled or invalid plugins
@@ -330,98 +307,87 @@ class JuliaPackageGenerator:
     def _build_git_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> str:
-        """Configure Git plugin with manifest handling and repository access method"""
+        """Configure Git plugin - uses PkgTemplates.jl defaults unless explicitly overridden"""
         git_options = []
 
-        # Configure default Git behavior for package development
-        manifest = False
-        ssh = False
-        ignore_patterns = None
-
-        # Get options from plugin options
+        # Only apply user-specified options
         if plugin_options and "Git" in plugin_options:
             options = plugin_options["Git"]
             if "manifest" in options:
-                manifest = options["manifest"]
+                git_options.append(f"manifest={str(options['manifest']).lower()}")
             if "ssh" in options:
-                ssh = options["ssh"]
+                git_options.append(f"ssh={str(options['ssh']).lower()}")
             if "ignore" in options:
                 ignore_patterns = options["ignore"]
+                # Support both list and comma-separated string formats from config
+                if isinstance(ignore_patterns, list):
+                    patterns = [f'"{p}"' for p in ignore_patterns]
+                else:
+                    patterns = [
+                        f'"{p.strip()}"'
+                        for p in ignore_patterns.split(",")
+                        if p.strip()
+                    ]
+                git_options.append(f"ignore=[{', '.join(patterns)}]")
 
-        git_options.append(f"manifest={str(manifest).lower()}")
-
-        if ssh:
-            git_options.append("ssh=true")
-        if ignore_patterns:
-            # Support both list and comma-separated string formats from config
-            if isinstance(ignore_patterns, list):
-                patterns = [f'"{p}"' for p in ignore_patterns]
-            else:
-                patterns = [
-                    f'"{p.strip()}"' for p in ignore_patterns.split(",") if p.strip()
-                ]
-            git_options.append(f"ignore=[{', '.join(patterns)}]")
-        return f"Git(; {', '.join(git_options)})"
+        if git_options:
+            return f"Git(; {', '.join(git_options)})"
+        else:
+            return "Git()"
 
     def _build_formatter_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
     ) -> str:
-        """Build Formatter plugin configuration"""
-        style = "nostyle"  # Default style
+        """Build Formatter plugin configuration - uses PkgTemplates.jl defaults unless explicitly overridden"""
+        formatter_options = []
 
-        # Get style from plugin options
+        # Only apply user-specified options
         if plugin_options and "Formatter" in plugin_options:
             options = plugin_options["Formatter"]
             if "style" in options:
-                style = options["style"]
+                formatter_options.append(f'style="{options["style"]}"')
 
-        return f'Formatter(; style="{style}")'
+        if formatter_options:
+            return f"Formatter(; {', '.join(formatter_options)})"
+        else:
+            return "Formatter()"
 
     def _build_tests_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> Optional[str]:
-        """Configure testing framework with optional static analysis tools"""
-        # Enable basic testing with optional quality assurance tools
-        tests_aqua = False
-        tests_jet = False
-        tests_project = True
+    ) -> str:
+        """Configure testing framework - uses PkgTemplates.jl defaults unless explicitly overridden"""
+        test_options = []
 
-        # Get options from plugin options
+        # Only apply user-specified options
         if plugin_options and "Tests" in plugin_options:
             options = plugin_options["Tests"]
             if "aqua" in options:
-                tests_aqua = options["aqua"]
+                test_options.append(f"aqua={str(options['aqua']).lower()}")
             if "jet" in options:
-                tests_jet = options["jet"]
+                test_options.append(f"jet={str(options['jet']).lower()}")
             if "project" in options:
-                tests_project = options["project"]
+                test_options.append(f"project={str(options['project']).lower()}")
 
-        test_options = []
-        if tests_project:
-            test_options.append("project=true")
-        if tests_aqua:
-            test_options.append("aqua=true")
-        if tests_jet:
-            test_options.append("jet=true")
         if test_options:
             return f"Tests(; {', '.join(test_options)})"
-        return None
+        else:
+            return "Tests()"
 
     def _build_github_actions_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> Optional[str]:
+    ) -> str:
         """Enable GitHub Actions CI/CD integration for automated testing and deployment"""
         return "GitHubActions()"
 
     def _build_codecov_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> Optional[str]:
+    ) -> str:
         """Enable Codecov integration for test coverage reporting"""
         return "Codecov()"
 
     def _build_documenter_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> Optional[str]:
+    ) -> str:
         """Configure Documenter.jl with GitHub Actions for automated documentation builds"""
         return "Documenter{GitHubActions}()"
 
