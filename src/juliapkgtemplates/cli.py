@@ -265,16 +265,18 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
     }
 
     for option_key, plugin_name in option_to_plugin.items():
-        if option_key in kwargs and kwargs[option_key]:
-            option_values = ensure_list(kwargs[option_key])
+        if option_key in kwargs and kwargs[option_key] is not None:
+            option_string = kwargs[option_key]
 
-            for option_string in option_values:
-                if option_string:
-                    options = parse_multiple_key_value_pairs(option_string)
-                    if options:
-                        if plugin_name not in plugin_options:
-                            plugin_options[plugin_name] = {}
-                        plugin_options[plugin_name].update(options)
+            # Plugin is enabled if option is specified (even if empty string)
+            if plugin_name not in plugin_options:
+                plugin_options[plugin_name] = {}
+
+            if option_string:  # Non-empty string: parse options
+                options = parse_multiple_key_value_pairs(option_string)
+                if options:
+                    plugin_options[plugin_name].update(options)
+            # Empty string: enable with defaults (no additional options)
 
     return plugin_options
 
@@ -299,38 +301,15 @@ def create_dynamic_plugin_options(cmd):
             continue
 
         option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
-        help_text = f"Set {plugin} plugin options as space-separated key=value pairs (e.g., 'manifest=false ssh=true')"
 
         def add_option(plugin_name=plugin, opt_name=option_name):
-            return click.option(opt_name, multiple=True, help=help_text)
-
-        cmd = add_option()(cmd)
-
-    return cmd
-
-
-def create_plugin_enable_options(cmd):
-    """Add --enable-{plugin} options for all known plugins"""
-
-    plugin_option_names = {
-        "Git": "--enable-git",
-        "Tests": "--enable-tests",
-        "Formatter": "--enable-formatter",
-        "ProjectFile": "--enable-project-file",
-        "GitHubActions": "--enable-github-actions",
-        "Codecov": "--enable-codecov",
-        "Documenter": "--enable-documenter",
-        "TagBot": "--enable-tagbot",
-        "CompatHelper": "--enable-compat-helper",
-        "License": "--enable-license",
-    }
-
-    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
-        option_name = plugin_option_names.get(plugin, f"--enable-{plugin.lower()}")
-        help_text = f"Enable {plugin} plugin"
-
-        def add_option(plugin_name=plugin, opt_name=option_name):
-            return click.option(opt_name, is_flag=True, help=help_text)
+            return click.option(
+                opt_name,
+                is_flag=False,
+                flag_value="",  # --plugin only → empty string (enable with defaults)
+                default=None,  # not specified → None (disabled)
+                help=f"Enable {plugin} plugin (empty for defaults, or key=value pairs)",
+            )
 
         cmd = add_option()(cmd)
 
@@ -397,7 +376,6 @@ def main():
         "enabled",
     ),
 )
-@create_plugin_enable_options
 @create_dynamic_plugin_options
 @click.pass_context
 def create(
@@ -442,24 +420,13 @@ def create(
 
     cli_plugin_options = parse_plugin_options_from_cli(**kwargs)
 
-    # Extract enabled plugins from kwargs first
+    # Extract enabled plugins from plugin options
+    # Plugins are enabled when their options are specified (not None)
     enabled_plugins = []
-    plugin_enable_mapping = {
-        "enable_git": "Git",
-        "enable_tests": "Tests",
-        "enable_formatter": "Formatter",
-        "enable_project_file": "ProjectFile",
-        "enable_github_actions": "GitHubActions",
-        "enable_codecov": "Codecov",
-        "enable_documenter": "Documenter",
-        "enable_tagbot": "TagBot",
-        "enable_compat_helper": "CompatHelper",
-        "enable_license": "License",
-    }
 
-    for key, plugin_name in plugin_enable_mapping.items():
-        if kwargs.get(key, False):
-            enabled_plugins.append(plugin_name)
+    for plugin_name, options in cli_plugin_options.items():
+        # Plugin is enabled if options are provided (including empty string for defaults)
+        enabled_plugins.append(plugin_name)
 
     # Apply config defaults if CLI arguments not provided
     final_author = author or defaults.get("author")
@@ -478,11 +445,6 @@ def create(
     click.echo(f"User: {final_user}")
     click.echo(f"Mail: {final_mail}")
 
-    # Debug: print current defaults and enabled plugins
-    if verbose:
-        click.echo(f"DEBUG: Current defaults: {defaults}")
-        click.echo(f"DEBUG: Enabled plugins: {enabled_plugins}")
-
     # Build final configuration with proper precedence
     final_config = {}
     final_config["enabled_plugins"] = enabled_plugins
@@ -496,65 +458,37 @@ def create(
     # Only apply plugin options for explicitly enabled plugins
     final_plugin_options = {}
 
-    # First, apply CLI plugin options
+    # Apply CLI plugin options (these are the enabled plugins)
     for plugin, options in cli_plugin_options.items():
-        if plugin in enabled_plugins:
-            final_plugin_options[plugin] = options.copy()
+        final_plugin_options[plugin] = options.copy()
 
-    # Then, apply config file options only for enabled plugins
-    config_plugin_options = defaults.copy()
-    # Remove non-plugin configuration
-    for key in [
-        "enabled_plugins",
-        "license_type",
-        "julia_version",
-        "mise_filename_base",
-        "with_mise",
-        "user",
-        "author",
-        "mail",
-        "output_dir",
-    ]:
-        config_plugin_options.pop(key, None)
+    # Then, apply config file options only for CLI-enabled plugins
+    if enabled_plugins:  # Only if there are CLI-enabled plugins
+        config_plugin_options = defaults.copy()
+        # Remove non-plugin configuration
+        for key in [
+            "enabled_plugins",
+            "license_type",
+            "julia_version",
+            "mise_filename_base",
+            "with_mise",
+            "user",
+            "author",
+            "mail",
+            "output_dir",
+        ]:
+            config_plugin_options.pop(key, None)
 
-    # Transform dot-notation config keys for enabled plugins only
-    for key, value in config_plugin_options.items():
-        if verbose:
-            click.echo(f"DEBUG: Processing config key: {key} = {value}")
-        if "." in key:
-            plugin_name, option_name = key.split(".", 1)
-            if verbose:
-                click.echo(
-                    f"DEBUG: Dot notation - plugin: {plugin_name}, option: {option_name}, enabled: {plugin_name in enabled_plugins}"
-                )
-            if plugin_name in enabled_plugins:
-                if plugin_name not in final_plugin_options:
-                    final_plugin_options[plugin_name] = {}
-                # CLI options take precedence over config file
-                if option_name not in final_plugin_options[plugin_name]:
-                    final_plugin_options[plugin_name][option_name] = value
-                    if verbose:
-                        click.echo(
-                            f"DEBUG: Applied config option {plugin_name}.{option_name} = {value}"
-                        )
-        else:
-            # Handle old-style plugin configurations (non-dot notation)
-            # Only apply if the key corresponds to an enabled plugin
-            if verbose:
-                click.echo(
-                    f"DEBUG: Non-dot notation - key: {key}, enabled: {key in enabled_plugins}"
-                )
-            if key in enabled_plugins:
-                if isinstance(value, dict):
-                    if key not in final_plugin_options:
-                        final_plugin_options[key] = {}
-                    for option_name, option_value in value.items():
-                        if option_name not in final_plugin_options[key]:
-                            final_plugin_options[key][option_name] = option_value
-                            if verbose:
-                                click.echo(
-                                    f"DEBUG: Applied config option {key}.{option_name} = {option_value}"
-                                )
+        # Transform dot-notation config keys for enabled plugins only
+        for key, value in config_plugin_options.items():
+            if "." in key:
+                plugin_name, option_name = key.split(".", 1)
+                if plugin_name in enabled_plugins:
+                    if plugin_name not in final_plugin_options:
+                        final_plugin_options[plugin_name] = {}
+                    # CLI options take precedence over config file
+                    if option_name not in final_plugin_options[plugin_name]:
+                        final_plugin_options[plugin_name][option_name] = value
 
     final_config["plugin_options"] = final_plugin_options
 
@@ -723,7 +657,7 @@ def generate_fish_completion() -> str:
         # Fish expects option names without the CLI prefix
         fish_option = option_name[2:]
         plugin_options.append(
-            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {fish_option} -d "{plugin} plugin options (space-separated key=value pairs)"'
+            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {fish_option} -d "Enable {plugin} plugin (empty for defaults, or key=value pairs)"'
         )
 
     # Generate config command plugin options
@@ -736,7 +670,7 @@ def generate_fish_completion() -> str:
         # Fish expects option names without the CLI prefix
         fish_option = option_name[2:]
         config_plugin_options.append(
-            f'complete -c jtc -n "__fish_seen_subcommand_from config" -l {fish_option} -d "Set default {plugin} plugin options (space-separated key=value pairs)"'
+            f'complete -c jtc -n "__fish_seen_subcommand_from config" -l {fish_option} -d "Set default {plugin} plugin options (key=value pairs)"'
         )
 
     # Load and render template
