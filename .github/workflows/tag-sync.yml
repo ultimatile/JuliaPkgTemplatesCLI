@@ -8,8 +8,7 @@ on:
 jobs:
   sync-tags:
     runs-on: ubuntu-latest
-    # Skip for chore/ci commits to avoid unnecessary tag movements
-    if: "!contains(github.event.head_commit.message, 'chore(ci)') && !contains(github.event.head_commit.message, 'chore:') && !contains(github.event.head_commit.message, 'ci:')"
+    if: "contains(github.event.head_commit.message, 'release:')"
     permissions:
       contents: write
       actions: write
@@ -24,24 +23,23 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-          
-          # Fetch all tags
+
           git fetch --tags
-          
+
           # Find the latest version tag
           LATEST_TAG=$(git tag -l "v*" --sort=-version:refname | head -n1)
-          
+
           if [ -z "$LATEST_TAG" ]; then
             echo "No version tags found"
             exit 0
           fi
-          
+
           echo "Latest tag found: $LATEST_TAG"
-          
+
           # Check if this tag points to current main branch commit
           TAG_COMMIT=$(git rev-list -n 1 "$LATEST_TAG")
           MAIN_COMMIT=$(git rev-parse HEAD)
-          
+
           if [ "$TAG_COMMIT" != "$MAIN_COMMIT" ]; then
             echo "Moving tag $LATEST_TAG from $TAG_COMMIT to $MAIN_COMMIT"
             
@@ -62,3 +60,4 @@ jobs:
           fi
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
