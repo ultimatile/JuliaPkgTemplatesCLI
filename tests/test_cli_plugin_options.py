@@ -79,7 +79,8 @@ class TestPluginOptionParsing:
             "tests": None,
         }
         result = parse_plugin_options_from_cli(**kwargs)
-        assert result == {}  # Empty options should result in empty dict
+        # Empty string enables plugin with no options, None doesn't enable
+        assert result == {"Git": {}}
 
     def test_malformed_plugin_options(self):
         """Test malformed plugin option strings"""
@@ -90,6 +91,7 @@ class TestPluginOptionParsing:
         }
         result = parse_plugin_options_from_cli(**kwargs)
         expected = {
+            "Git": {},  # "manifest" without = just enables plugin
             "Tests": {"aqua": ""},  # Empty value becomes empty string
             "Formatter": {"": "blue"},  # Missing key becomes empty string
         }
@@ -155,7 +157,7 @@ class TestCLICommands:
         # ssh=false is default, so it might not appear in output
 
     def test_create_with_partial_plugin_override_separate_args(self, mock_subprocess):
-        """Test create command with separate plugin args - should do key-level merge"""
+        """Test create command with separate plugin args - last option wins"""
         runner = CliRunner()
 
         # Use isolated config to avoid interference from user settings
@@ -168,17 +170,17 @@ class TestCLICommands:
                     "--git",
                     "ssh=true manifest=false",
                     "--git",
-                    "manifest=true",  # Only manifest specified, ssh should be preserved (key-level merge)
+                    "manifest=true",  # Last option wins, only manifest=true is kept
                     "--dry-run",
                 ],
                 env={"XDG_CONFIG_HOME": "."},  # Use isolated config
             )
 
             assert result.exit_code == 0
-            # Should do key-level merge: ssh=true should survive from first argument
-            assert "ssh=true" in result.output
-            # manifest=true should override manifest=false
+            # Last option wins: only manifest=true should be present
             assert "manifest=true" in result.output
+            # ssh option from first argument should not be present
+            assert "ssh=true" not in result.output
 
     def test_create_with_complex_list_options(self, mock_subprocess):
         """Test create command with complex list plugin options"""
@@ -312,7 +314,7 @@ class TestCLICommands:
         assert config_data["default"]["Git"]["manifest"] is True
 
     def test_config_command_with_partial_plugin_override(self, isolated_config):
-        """Test config command with separate plugin args - should do key-level merge"""
+        """Test config command with separate plugin args - last option wins"""
         runner = CliRunner()
 
         result = runner.invoke(
@@ -323,18 +325,20 @@ class TestCLICommands:
                 "--git",
                 "ssh=true manifest=false",
                 "--git",
-                "manifest=true",  # Only manifest specified, ssh should be preserved (key-level merge)
+                "manifest=true",  # Last option wins, only manifest=true is kept
             ],
         )
 
         assert result.exit_code == 0
-        # Should do key-level merge: both ssh and manifest should be set
-        assert "Set default Git.ssh: True" in result.output
+        # Last option wins: only manifest should be set
         assert "Set default Git.manifest: True" in result.output
         assert "Configuration saved" in result.output
+        # ssh should not be set since last option doesn't include it
+        assert "Set default Git.ssh:" not in result.output
 
         # Verify the config was saved correctly
         config_data = load_config()
-        # Both keys should be present after merge
-        assert config_data["default"]["Git"]["ssh"] is True
+        # Only manifest should be present since last option wins
         assert config_data["default"]["Git"]["manifest"] is True
+        # ssh should not be present since it was only in the first option
+        assert "ssh" not in config_data["default"]["Git"]

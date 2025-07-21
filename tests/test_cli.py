@@ -213,7 +213,6 @@ class TestCreateCommand:
                     "user": "configuser",
                     "mail": "config@example.com",
                     "license": "Apache",
-                    "template": "full",
                 }
             }
 
@@ -237,7 +236,6 @@ class TestCreateCommand:
                 assert call_args[0][2] == "configuser"  # user (position 2)
                 assert call_args[0][3] == "config@example.com"  # mail (position 3)
                 assert call_args[0][5].license_type == "Apache"  # config (position 5)
-                assert call_args[0][5].template == "full"
 
     def test_create_no_author_delegates_to_pkgtemplates(self, cli_runner, temp_dir):
         """Test create command delegates to PkgTemplates.jl when no author provided"""

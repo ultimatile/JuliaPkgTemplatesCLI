@@ -19,85 +19,6 @@ class TestJuliaPackageGenerator:
         assert generator.templates_dir.name == "templates"
         assert generator.jinja_env is not None
 
-    def test_get_plugins_minimal(self):
-        """Test plugin configuration for minimal template"""
-        generator = JuliaPackageGenerator()
-
-        plugins = generator._get_plugins(
-            template="minimal",
-            license_type="MIT",
-            plugin_options={
-                "Formatter": {"style": "nostyle"},
-                "Tests": {"project": True},
-                "Git": {"manifest": False},
-            },
-        )
-
-        expected_plugins = [
-            'ProjectFile(; version=v"0.0.1")',
-            'License(; name="MIT")',
-            "Git(; manifest=false)",
-            'Formatter(; style="nostyle")',
-            "Tests(; project=true)",
-        ]
-
-        assert plugins["plugins"] == expected_plugins
-
-    def test_get_plugins_standard(self):
-        """Test plugin configuration for standard template"""
-        generator = JuliaPackageGenerator()
-
-        plugins = generator._get_plugins(
-            template="standard",
-            license_type="MIT",
-            plugin_options={
-                "Formatter": {"style": "blue"},
-                "Tests": {"project": True, "aqua": True},
-                "Git": {"manifest": False, "ssh": True},
-            },
-        )
-
-        expected_plugins = [
-            'ProjectFile(; version=v"0.0.1")',
-            'License(; name="MIT")',
-            "Git(; manifest=false, ssh=true)",
-            'Formatter(; style="blue")',
-            "Tests(; project=true, aqua=true)",
-            "GitHubActions()",
-            "Codecov()",
-        ]
-
-        assert plugins["plugins"] == expected_plugins
-
-    def test_get_plugins_full(self):
-        """Test plugin configuration for full template"""
-        generator = JuliaPackageGenerator()
-
-        plugins = generator._get_plugins(
-            template="full",
-            license_type="Apache",
-            plugin_options={
-                "Formatter": {"style": "sciml"},
-                "Tests": {"project": True, "aqua": True, "jet": True},
-                "Git": {"manifest": True, "ssh": False},
-            },
-        )
-
-        expected_plugins = [
-            'ProjectFile(; version=v"0.0.1")',
-            'License(; name="ASL")',
-            "Git(; manifest=true)",
-            'Formatter(; style="sciml")',
-            "Tests(; project=true, aqua=true, jet=true)",
-            "GitHubActions()",
-            "Codecov()",
-            "Documenter{GitHubActions}()",
-            "TagBot()",
-            "CompatHelper()",
-        ]
-
-        assert plugins["plugins"] == expected_plugins
-
     @patch("subprocess.run")
     def test_call_julia_generator_success(self, mock_run, temp_dir):
         """Test successful Julia template execution"""
@@ -266,7 +187,7 @@ class TestJuliaPackageGenerator:
         generator = JuliaPackageGenerator()
 
         config = PackageConfig(
-            template="minimal",
+            enabled_plugins=["License", "Git"],
             license_type="MIT",
             plugin_options={"Git": {"manifest": False}},
         )
@@ -294,7 +215,7 @@ class TestJuliaPackageGenerator:
         generator = JuliaPackageGenerator()
 
         config = PackageConfig(
-            template="minimal",
+            enabled_plugins=["License", "Git"],
             license_type="MIT",
             plugin_options={"Git": {"manifest": False}},
             mise_filename_base="mise",
@@ -326,7 +247,6 @@ class TestJuliaPackageGenerator:
         package_name = "TestPackage"
 
         config = PackageConfig(
-            template="minimal",
             with_mise=False,
         )
 
@@ -354,7 +274,6 @@ class TestJuliaPackageGenerator:
         package_name = "TestPackage"
 
         config = PackageConfig(
-            template="minimal",
             with_mise=True,
         )
 
@@ -381,7 +300,7 @@ class TestJuliaPackageGenerator:
         generator = JuliaPackageGenerator()
         non_existent_dir = temp_dir / "non_existent"
 
-        config = PackageConfig(template="minimal")
+        config = PackageConfig()
 
         with patch.object(generator, "_call_julia_generator") as mock_call:
             package_dir = non_existent_dir / "TestPackage"
@@ -439,7 +358,7 @@ class TestJuliaPackageGenerator:
         generator = JuliaPackageGenerator()
 
         config = PackageConfig(
-            template="minimal",
+            enabled_plugins=["License", "Git"],
             license_type="MIT",
             plugin_options={"Git": {"manifest": False}},
         )
@@ -467,14 +386,12 @@ class TestPackageConfig:
     def test_from_dict_basic(self):
         """Test creating PackageConfig from basic dictionary"""
         config_dict = {
-            "template": "standard",
             "license_type": "MIT",
             "julia_version": "1.8.0",
         }
 
         config = PackageConfig.from_dict(config_dict)
 
-        assert config.template == "standard"
         assert config.license_type == "MIT"
         assert config.julia_version == "1.8.0"
         assert config.plugin_options == {}
@@ -482,7 +399,6 @@ class TestPackageConfig:
     def test_from_dict_with_plugin_options(self):
         """Test creating PackageConfig with plugin options"""
         config_dict = {
-            "template": "full",
             "plugin_options": {
                 "Git": {"manifest": False, "ssh": True},
                 "Tests": {"aqua": True},
@@ -491,7 +407,6 @@ class TestPackageConfig:
 
         config = PackageConfig.from_dict(config_dict)
 
-        assert config.template == "full"
         assert config.plugin_options is not None
         assert config.plugin_options["Git"]["manifest"] is False
         assert config.plugin_options["Git"]["ssh"] is True
@@ -500,7 +415,6 @@ class TestPackageConfig:
     def test_from_dict_with_dot_notation(self):
         """Test creating PackageConfig with dot notation plugin options"""
         config_dict = {
-            "template": "standard",
             "git.manifest": False,
             "git.ssh": True,
             "tests.aqua": True,
@@ -509,7 +423,6 @@ class TestPackageConfig:
 
         config = PackageConfig.from_dict(config_dict)
 
-        assert config.template == "standard"
         assert config.plugin_options is not None
         assert config.plugin_options["git"]["manifest"] is False
         assert config.plugin_options["git"]["ssh"] is True
@@ -519,7 +432,6 @@ class TestPackageConfig:
     def test_from_dict_mixed_formats(self):
         """Test creating PackageConfig with mixed plugin option formats"""
         config_dict = {
-            "template": "full",
             "plugin_options": {"Git": {"manifest": True}},
             "git.ssh": False,  # This should override the plugin_options value
             "tests.aqua": True,
@@ -527,7 +439,6 @@ class TestPackageConfig:
 
         config = PackageConfig.from_dict(config_dict)
 
-        assert config.template == "full"
         assert config.plugin_options is not None
         assert config.plugin_options["Git"]["manifest"] is True
         assert config.plugin_options["git"]["ssh"] is False
@@ -537,7 +448,6 @@ class TestPackageConfig:
         """Test creating PackageConfig from empty dictionary"""
         config = PackageConfig.from_dict({})
 
-        assert config.template == "standard"
         assert config.license_type is None
         assert config.julia_version is None
         assert config.plugin_options == {}
@@ -546,7 +456,6 @@ class TestPackageConfig:
         """Test creating PackageConfig from None"""
         config = PackageConfig.from_dict(None)
 
-        assert config.template == "standard"
         assert config.license_type is None
         assert config.julia_version is None
         assert config.plugin_options == {}
@@ -554,27 +463,23 @@ class TestPackageConfig:
     def test_from_dict_unknown_keys(self):
         """Test that unknown keys are safely ignored"""
         config_dict = {
-            "template": "minimal",
             "unknown_key": "unknown_value",
             "another_unknown": 42,
         }
 
         config = PackageConfig.from_dict(config_dict)
 
-        assert config.template == "minimal"
         assert not hasattr(config, "unknown_key")
         assert not hasattr(config, "another_unknown")
 
     def test_from_dict_with_mise_filename_base(self):
         """Test creating PackageConfig with mise_filename_base"""
         config_dict = {
-            "template": "standard",
             "mise_filename_base": "mise",
         }
 
         config = PackageConfig.from_dict(config_dict)
 
-        assert config.template == "standard"
         assert config.mise_filename_base == "mise"
 
     def test_default_mise_filename_base(self):
@@ -590,11 +495,9 @@ class TestPackageConfig:
     def test_from_dict_with_mise_option(self):
         """Test creating PackageConfig with with_mise option"""
         config_dict = {
-            "template": "minimal",
             "with_mise": False,
         }
 
         config = PackageConfig.from_dict(config_dict)
 
-        assert config.template == "minimal"
         assert config.with_mise is False
