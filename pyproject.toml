@@ -1,6 +1,6 @@
 [project]
 name = "JuliaPkgTemplatesCLI"
-version = "0.2.0"
+version = "0.3.0"
 description = "Julia package template generator with PkgTemplates.jl and mise tasks integration"
 readme = "README.md"
 authors = [{ name = "ultimatile" }]
