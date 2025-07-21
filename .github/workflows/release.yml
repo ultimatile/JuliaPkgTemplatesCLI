@@ -45,11 +45,20 @@ jobs:
 
           if [ "$CURRENT_VERSION" != "$TAG_VERSION" ]; then
             echo "Updating pyproject.toml version from $CURRENT_VERSION to $TAG_VERSION"
+            
+            # Fetch and create main branch locally
+            git fetch origin main:main
+            git checkout main
+            git pull origin main
+            
             sed -i "s/version = \".*\"/version = \"$TAG_VERSION\"/" pyproject.toml
             uv sync
             git add pyproject.toml uv.lock
             git commit -m "chore: bump version to $TAG_VERSION [skip ci]"
             git push origin main
+            
+            # Switch back to the tag for semantic-release
+            git checkout $GITHUB_REF
           fi
 
           # Create GitHub release using existing tag
