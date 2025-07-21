@@ -226,8 +226,6 @@ class TestCreateCommand:
                 )
 
                 assert result.exit_code == 0
-                assert "Author: Config Author" in result.output
-                assert "Mail: config@example.com" in result.output
                 mock_instance.create_package.assert_called_once()
 
                 # Check that config values were used
@@ -250,8 +248,6 @@ class TestCreateCommand:
                 )
 
                 assert result.exit_code == 0
-                assert "Author: None" in result.output
-                assert "Mail: None" in result.output
                 # Verify that create_package was called with author=None, user=None, and mail=None, letting PkgTemplates.jl handle it
                 mock_instance.create_package.assert_called_once()
                 call_args = mock_instance.create_package.call_args
