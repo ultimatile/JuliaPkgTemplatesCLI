@@ -441,9 +441,6 @@ def create(
     )
 
     # Display configuration being used
-    click.echo(f"Author: {final_author}")
-    click.echo(f"User: {final_user}")
-    click.echo(f"Mail: {final_mail}")
 
     # Build final configuration with proper precedence
     final_config = {}
