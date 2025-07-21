@@ -27,7 +27,7 @@ class TemplateConfig:
 class PackageConfig:
     """Configuration for package creation"""
 
-    enabled_plugins: List[str] = None
+    enabled_plugins: Optional[List[str]] = None
     license_type: Optional[str] = None
     julia_version: Optional[str] = None
     plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
@@ -241,7 +241,7 @@ class JuliaPackageGenerator:
 
     def _get_plugins(
         self,
-        enabled_plugins: List[str],
+        enabled_plugins: Optional[List[str]],
         license_type: Optional[str],
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
@@ -262,7 +262,7 @@ class JuliaPackageGenerator:
             "CompatHelper": lambda: self._build_compathelper_plugin(plugin_options),
         }
 
-        for plugin_name in enabled_plugins:
+        for plugin_name in enabled_plugins or []:
             if plugin_name in plugin_builders:
                 plugin = plugin_builders[plugin_name]()
                 if plugin:  # Exclude disabled or invalid plugins
@@ -491,7 +491,12 @@ class JuliaPackageGenerator:
                         error_msg = error_lines[-1][1]
                     else:
                         error_msg = f"Julia execution failed: {e.stdout}"
-                    if "PkgTemplates" in e.stderr:
+                    # Only show PkgTemplates installation hint for actual module loading errors
+                    if (
+                        "ArgumentError: Package PkgTemplates not found" in e.stderr
+                        or "LoadError" in e.stderr
+                        and "PkgTemplates" in e.stderr
+                    ):
                         error_msg += "\nHint: Make sure PkgTemplates.jl is installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'"
                     raise RuntimeError(error_msg) from e
                 else:
