@@ -213,7 +213,6 @@ class TestCreateCommand:
                     "user": "configuser",
                     "mail": "config@example.com",
                     "license": "Apache",
-                    "template": "full",
                 }
             }
 
@@ -227,8 +226,6 @@ class TestCreateCommand:
                 )
 
                 assert result.exit_code == 0
-                assert "Author: Config Author" in result.output
-                assert "Mail: config@example.com" in result.output
                 mock_instance.create_package.assert_called_once()
 
                 # Check that config values were used
@@ -237,7 +234,6 @@ class TestCreateCommand:
                 assert call_args[0][2] == "configuser"  # user (position 2)
                 assert call_args[0][3] == "config@example.com"  # mail (position 3)
                 assert call_args[0][5].license_type == "Apache"  # config (position 5)
-                assert call_args[0][5].template == "full"
 
     def test_create_no_author_delegates_to_pkgtemplates(self, cli_runner, temp_dir):
         """Test create command delegates to PkgTemplates.jl when no author provided"""
@@ -252,14 +248,91 @@ class TestCreateCommand:
                 )
 
                 assert result.exit_code == 0
-                assert "Author: None" in result.output
-                assert "Mail: None" in result.output
                 # Verify that create_package was called with author=None, user=None, and mail=None, letting PkgTemplates.jl handle it
                 mock_instance.create_package.assert_called_once()
                 call_args = mock_instance.create_package.call_args
                 assert call_args[0][1] is None  # author (position 1)
                 assert call_args[0][2] is None  # user (position 2)
                 assert call_args[0][3] is None  # mail (position 3)
+
+    def test_create_with_custom_mise_filename_base(self, cli_runner, temp_dir):
+        """Test create command with custom mise filename base"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.create_package.return_value = temp_dir / "TestPackage"
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--output-dir",
+                        str(temp_dir),
+                        "--mise-filename-base",
+                        "mise",
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_instance.create_package.assert_called_once()
+
+                # Check that custom mise filename base was passed in config
+                call_args = mock_instance.create_package.call_args
+                config = call_args[0][5]  # PackageConfig (position 5)
+                assert config.mise_filename_base == "mise"
+
+    def test_create_with_no_mise(self, cli_runner, temp_dir):
+        """Test create command with --no-mise option"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.create_package.return_value = temp_dir / "TestPackage"
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--output-dir",
+                        str(temp_dir),
+                        "--no-mise",
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_instance.create_package.assert_called_once()
+
+                # Check that mise is disabled in config
+                call_args = mock_instance.create_package.call_args
+                config = call_args[0][5]  # PackageConfig (position 5)
+                assert config.with_mise is False
+
+    def test_create_with_mise_enabled(self, cli_runner, temp_dir):
+        """Test create command with --with-mise option (default behavior)"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.create_package.return_value = temp_dir / "TestPackage"
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--output-dir",
+                        str(temp_dir),
+                        "--with-mise",
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_instance.create_package.assert_called_once()
+
+                # Check that mise is enabled in config
+                call_args = mock_instance.create_package.call_args
+                config = call_args[0][5]  # PackageConfig (position 5)
+                assert config.with_mise is True
 
 
 class TestConfigCommand:
@@ -290,6 +363,35 @@ class TestConfigCommand:
 
             assert result.exit_code == 0
             assert "Set default mail: new@example.com" in result.output
+            assert "Configuration saved" in result.output
+
+    def test_config_set_mise_filename_base(self, cli_runner, isolated_config):
+        """Test config set command sets mise filename base"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(
+                config_cmd, ["set", "--mise-filename-base", "mise"]
+            )
+
+            assert result.exit_code == 0
+            assert "Set default mise_filename_base: mise" in result.output
+            assert "Configuration saved" in result.output
+
+    def test_config_set_with_mise(self, cli_runner, isolated_config):
+        """Test config set command sets with_mise option"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(config_cmd, ["set", "--with-mise"])
+
+            assert result.exit_code == 0
+            assert "Set default with_mise: True" in result.output
+            assert "Configuration saved" in result.output
+
+    def test_config_set_no_mise(self, cli_runner, isolated_config):
+        """Test config set command sets no_mise option"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(config_cmd, ["set", "--no-mise"])
+
+            assert result.exit_code == 0
+            assert "Set default with_mise: False" in result.output
             assert "Configuration saved" in result.output
 
     def test_config_show(self, cli_runner, isolated_config):

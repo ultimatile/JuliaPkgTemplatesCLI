@@ -265,16 +265,18 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
     }
 
     for option_key, plugin_name in option_to_plugin.items():
-        if option_key in kwargs and kwargs[option_key]:
-            option_values = ensure_list(kwargs[option_key])
+        if option_key in kwargs and kwargs[option_key] is not None:
+            option_string = kwargs[option_key]
 
-            for option_string in option_values:
-                if option_string:
-                    options = parse_multiple_key_value_pairs(option_string)
-                    if options:
-                        if plugin_name not in plugin_options:
-                            plugin_options[plugin_name] = {}
-                        plugin_options[plugin_name].update(options)
+            # Plugin is enabled if option is specified (even if empty string)
+            if plugin_name not in plugin_options:
+                plugin_options[plugin_name] = {}
+
+            if option_string:  # Non-empty string: parse options
+                options = parse_multiple_key_value_pairs(option_string)
+                if options:
+                    plugin_options[plugin_name].update(options)
+            # Empty string: enable with defaults (no additional options)
 
     return plugin_options
 
@@ -299,10 +301,15 @@ def create_dynamic_plugin_options(cmd):
             continue
 
         option_name = plugin_option_names.get(plugin, f"--{plugin.lower()}")
-        help_text = f"Set {plugin} plugin options as space-separated key=value pairs (e.g., 'manifest=false ssh=true')"
 
         def add_option(plugin_name=plugin, opt_name=option_name):
-            return click.option(opt_name, multiple=True, help=help_text)
+            return click.option(
+                opt_name,
+                is_flag=False,
+                flag_value="",  # --plugin only → empty string (enable with defaults)
+                default=None,  # not specified → None (disabled)
+                help=f"Enable {plugin} plugin (empty for defaults, or key=value pairs)",
+            )
 
         cmd = add_option()(cmd)
 
@@ -326,12 +333,6 @@ def main():
     "-o",
     type=click.Path(),
     help="Output directory (default: current directory)",
-)
-@click.option(
-    "--template",
-    "-t",
-    type=click.Choice(["minimal", "standard", "full"]),
-    help=get_help_with_default("Template type", "template", "standard"),
 )
 @click.option(
     "--license",
@@ -358,6 +359,23 @@ def main():
     default=False,
     help="Enable verbose output for debugging",
 )
+@click.option(
+    "--mise-filename-base",
+    help=get_help_with_default(
+        "Base name for mise config file (e.g., '.mise' creates '.mise.toml', 'mise' creates 'mise.toml')",
+        "mise_filename_base",
+        ".mise",
+    ),
+)
+@click.option(
+    "--with-mise/--no-mise",
+    default=True,
+    help=get_help_with_default(
+        "Enable/disable mise task file generation",
+        "with_mise",
+        "enabled",
+    ),
+)
 @create_dynamic_plugin_options
 @click.pass_context
 def create(
@@ -367,11 +385,12 @@ def create(
     user: Optional[str],
     mail: Optional[str],
     output_dir: Optional[str],
-    template: Optional[str],
     license: Optional[str],
     julia_version: Optional[str],
     dry_run: bool,
     verbose: bool,
+    mise_filename_base: Optional[str],
+    with_mise: bool,
     **kwargs,
 ):
     """Create a new Julia package"""
@@ -401,47 +420,74 @@ def create(
 
     cli_plugin_options = parse_plugin_options_from_cli(**kwargs)
 
+    # Extract enabled plugins from plugin options
+    # Plugins are enabled when their options are specified (not None)
+    enabled_plugins = []
+
+    for plugin_name, options in cli_plugin_options.items():
+        # Plugin is enabled if options are provided (including empty string for defaults)
+        enabled_plugins.append(plugin_name)
+
     # Apply config defaults if CLI arguments not provided
     final_author = author or defaults.get("author")
     final_user = user or defaults.get("user")
     final_mail = mail or defaults.get("mail")
     final_output_dir = output_dir or defaults.get("output_dir", ".")
+    final_mise_filename_base = mise_filename_base or defaults.get(
+        "mise_filename_base", ".mise"
+    )
+    final_with_mise = (
+        with_mise if with_mise is not None else defaults.get("with_mise", True)
+    )
 
     # Display configuration being used
-    click.echo(f"Author: {final_author}")
-    click.echo(f"User: {final_user}")
-    click.echo(f"Mail: {final_mail}")
 
     # Build final configuration with proper precedence
     final_config = {}
-    final_config["template"] = template or defaults.get("template", "standard")
+    final_config["enabled_plugins"] = enabled_plugins
     final_config["license_type"] = (
         license or defaults.get("license_type") or defaults.get("license")
     )
     final_config["julia_version"] = julia_version or defaults.get("julia_version")
+    final_config["mise_filename_base"] = final_mise_filename_base
+    final_config["with_mise"] = final_with_mise
 
-    # Merge plugin options (CLI overrides config)
-    config_plugin_options = defaults.copy()
-    # Isolate plugin-specific configuration from general package settings
-    for key in ["template", "license_type", "julia_version"]:
-        config_plugin_options.pop(key, None)
+    # Only apply plugin options for explicitly enabled plugins
+    final_plugin_options = {}
 
-    # Transform dot-notation config keys (e.g., Git.manifest) into nested structure
-    config_plugin_dict = {}
-    for key, value in config_plugin_options.items():
-        if "." in key:
-            plugin_name, option_name = key.split(".", 1)
-            if plugin_name not in config_plugin_dict:
-                config_plugin_dict[plugin_name] = {}
-            config_plugin_dict[plugin_name][option_name] = value
-
-    # Apply CLI overrides to maintain precedence hierarchy
+    # Apply CLI plugin options (these are the enabled plugins)
     for plugin, options in cli_plugin_options.items():
-        if plugin not in config_plugin_dict:
-            config_plugin_dict[plugin] = {}
-        config_plugin_dict[plugin].update(options)
+        final_plugin_options[plugin] = options.copy()
 
-    final_config["plugin_options"] = config_plugin_dict if config_plugin_dict else {}
+    # Then, apply config file options only for CLI-enabled plugins
+    if enabled_plugins:  # Only if there are CLI-enabled plugins
+        config_plugin_options = defaults.copy()
+        # Remove non-plugin configuration
+        for key in [
+            "enabled_plugins",
+            "license_type",
+            "julia_version",
+            "mise_filename_base",
+            "with_mise",
+            "user",
+            "author",
+            "mail",
+            "output_dir",
+        ]:
+            config_plugin_options.pop(key, None)
+
+        # Transform dot-notation config keys for enabled plugins only
+        for key, value in config_plugin_options.items():
+            if "." in key:
+                plugin_name, option_name = key.split(".", 1)
+                if plugin_name in enabled_plugins:
+                    if plugin_name not in final_plugin_options:
+                        final_plugin_options[plugin_name] = {}
+                    # CLI options take precedence over config file
+                    if option_name not in final_plugin_options[plugin_name]:
+                        final_plugin_options[plugin_name][option_name] = value
+
+    final_config["plugin_options"] = final_plugin_options
 
     # Create PackageConfig
     package_config = PackageConfig.from_dict(final_config)
@@ -608,7 +654,7 @@ def generate_fish_completion() -> str:
         # Fish expects option names without the CLI prefix
         fish_option = option_name[2:]
         plugin_options.append(
-            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {fish_option} -d "{plugin} plugin options (space-separated key=value pairs)"'
+            f'complete -c jtc -n "__fish_seen_subcommand_from create" -l {fish_option} -d "Enable {plugin} plugin (empty for defaults, or key=value pairs)"'
         )
 
     # Generate config command plugin options
@@ -621,7 +667,7 @@ def generate_fish_completion() -> str:
         # Fish expects option names without the CLI prefix
         fish_option = option_name[2:]
         config_plugin_options.append(
-            f'complete -c jtc -n "__fish_seen_subcommand_from config" -l {fish_option} -d "Set default {plugin} plugin options (space-separated key=value pairs)"'
+            f'complete -c jtc -n "__fish_seen_subcommand_from config" -l {fish_option} -d "Set default {plugin} plugin options (key=value pairs)"'
         )
 
     # Load and render template
@@ -645,6 +691,10 @@ def generate_fish_completion() -> str:
 @click.option(
     "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
 )
+@click.option("--mise-filename-base", help="Set default base name for mise config file")
+@click.option(
+    "--with-mise/--no-mise", default=None, help="Set default mise task file generation"
+)
 @create_dynamic_plugin_options
 @click.pass_context
 def config(
@@ -655,6 +705,8 @@ def config(
     license: Optional[str],
     template: Optional[str],
     julia_version: Optional[str],
+    mise_filename_base: Optional[str],
+    with_mise: Optional[bool],
     **kwargs,
 ):
     """Configuration management"""
@@ -668,6 +720,8 @@ def config(
                 license is not None,
                 template is not None,
                 julia_version is not None,
+                mise_filename_base is not None,
+                with_mise is not None,
             ]
         )
 
@@ -677,7 +731,17 @@ def config(
 
         if has_config_options or has_plugin_options:
             # Options provided, delegate to set functionality
-            _set_config(author, user, mail, license, template, julia_version, **kwargs)
+            _set_config(
+                author,
+                user,
+                mail,
+                license,
+                template,
+                julia_version,
+                mise_filename_base,
+                with_mise,
+                **kwargs,
+            )
         else:
             # No options provided, show config as default
             _show_config()
@@ -704,6 +768,8 @@ def _show_config():
         "license_type",
         "template",
         "julia_version",
+        "mise_filename_base",
+        "with_mise",
     }
     basic_config = {}
     plugin_config = {}
@@ -734,6 +800,8 @@ def _set_config(
     license: Optional[str],
     template: Optional[str],
     julia_version: Optional[str],
+    mise_filename_base: Optional[str],
+    with_mise: Optional[bool],
     **kwargs,
 ):
     """Set configuration values (shared logic)"""
@@ -770,6 +838,14 @@ def _set_config(
         config_data["default"]["julia_version"] = julia_version
         click.echo(f"Set default julia_version: {julia_version}")
         updated = True
+    if mise_filename_base is not None:
+        config_data["default"]["mise_filename_base"] = mise_filename_base
+        click.echo(f"Set default mise_filename_base: {mise_filename_base}")
+        updated = True
+    if with_mise is not None:
+        config_data["default"]["with_mise"] = with_mise
+        click.echo(f"Set default with_mise: {with_mise}")
+        updated = True
 
     # Process plugin options - save in nested structure
     for plugin_name, options in plugin_options.items():
@@ -802,6 +878,10 @@ def show():
 @click.option(
     "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
 )
+@click.option("--mise-filename-base", help="Set default base name for mise config file")
+@click.option(
+    "--with-mise/--no-mise", default=None, help="Set default mise task file generation"
+)
 @create_dynamic_plugin_options
 def set(
     author: Optional[str],
@@ -810,10 +890,22 @@ def set(
     license: Optional[str],
     template: Optional[str],
     julia_version: Optional[str],
+    mise_filename_base: Optional[str],
+    with_mise: Optional[bool],
     **kwargs,
 ):
     """Set configuration values"""
-    _set_config(author, user, mail, license, template, julia_version, **kwargs)
+    _set_config(
+        author,
+        user,
+        mail,
+        license,
+        template,
+        julia_version,
+        mise_filename_base,
+        with_mise,
+        **kwargs,
+    )
 
 
 if __name__ == "__main__":

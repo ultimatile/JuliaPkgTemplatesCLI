@@ -5,25 +5,34 @@
 
 ## Overview
 
-JuliaPkgTemplatesCLI (`jtc`) is a command-line tool for generating Julia packages using PkgTemplates.jl with integrated mise task management. It streamlines the Julia package creation process by:
+JuliaPkgTemplatesCLI (`jtc`) is a command-line tool for generating Julia packages using [PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) with integrated [mise](https://github.com/jdx/mise) task management. It streamlines the Julia package creation process by:
 
 - Generating Julia packages using PkgTemplates.jl templates with comprehensive plugin support
 - Integrating with mise tasks for Pkg.jl related commands (e.g., `add`, `rm`, `instantiate`, etc.) to manage dependencies
-- Providing configurable templates and settings with user defaults and plugin-specific options
+- Providing configurable settings with user defaults and plugin-specific options
 - Supporting shell completion (currently fish shell) for improved developer experience
+
+## Quick start without installation
+
+You can try JuliaPkgTemplatesCLI without installing it using `uvx`:
+
+```bash
+# Create a simple Julia package
+uvx --from git+https://github.com/ultimatile/JuliaPkgTemplatesCLI jtc create MyPackage.jl
+```
 
 ## Installation
 
 ### From GitHub Repository
 
-Alternatively, you can install directly from the GitHub repository:
+You can install directly from the GitHub repository:
 
 ```bash
 # Install from the latest commit on main branch
 uv tool install git+https://github.com/ultimatile/JuliaPkgTemplatesCLI.git
 
 # Install from a specific release tag
-uv tool install git+https://github.com/ultimatile/JuliaPkgTemplatesCLI.git@v0.2.0
+uv tool install git+https://github.com/ultimatile/JuliaPkgTemplatesCLI.git@v0.3.0
 ```
 
 ### From Source
@@ -40,8 +49,8 @@ uv tool install .
 
 - Python 3.11 or higher
 - Julia 1.6 or higher
-- PkgTemplates.jl installed in Julia
-- mise (optional, for mise task integration)
+- [PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) installed in Julia. Currently This package is based on PkgTemplates.jl v0.7.56 but doesn’t lock its version, so it may break if users install a newer PkgTemplates.jl release.
+- [mise](https://github.com/jdx/mise) (optional, for mise task integration)
 
 ### Runtime Dependencies
 
@@ -50,8 +59,10 @@ uv tool install .
 
 ### Development Dependencies
 
+- uv (package management)
 - pytest (testing)
 - pyright (type checking)
+- ruff (code linting)
 
 ## Shell Completion
 
@@ -63,7 +74,7 @@ For fish:
 echo 'jtc completion | source' > ~/.config/fish/completions/jtc.fish
 ```
 
-Currently, shell completion is only available for fish shell. Support for other shells (bash, zsh) will be added in future releases.
+Currently, shell completion is only available for fish shell.
 
 ## Usage
 
@@ -81,19 +92,25 @@ JuliaPkgTemplatesCLI provides four main commands:
 jtc --help
 
 # Create a new Julia package with minimal options
-jtc create MyPackage
+jtc create MyPackage.jl
 
 # Create a package with specific author and output directory
-jtc create MyPackage --author "Your Name" --output-dir ~/projects
+jtc create MyPackage.jl --user "Your Name" --output-dir ~/projects
 
-# Create a package with specific template and license
-jtc create MyPackage --template full --license Apache
+# Create a package with specific license and plugins
+jtc create MyPackage.jl --license Apache --formatter style=sciml
 
 # Create a package with plugin-specific options
-jtc create MyPackage --formatter "style=blue margin=92" --documenter "logo=assets/logo.png"
+jtc create MyPackage.jl --git ssh=true
+
+# Create a package with custom mise filename
+jtc create MyPackage.jl --mise-filename-base "mise"
+
+# Create a package without mise integration
+jtc create MyPackage.jl --no-mise
 
 # Dry run to see what would be executed
-jtc create MyPackage --dry-run
+jtc create MyPackage.jl --dry-run
 
 # Show current version
 jtc --version
@@ -101,15 +118,15 @@ jtc --version
 
 ### Configuration Management
 
-```bash
+````bash
 # Show current configuration
-jtc config show # or jtc config
+jtc config # or jtc config show
 
-# Set configuration values (set subcommand can be omitted)
-jtc config set --author "Your Name" --license MIT --template standard
+# Set configuration values
+jtc config --user "Your Name" --license MIT --formatter style=sciml
 
 # Set plugin-specific defaults
-jtc config set --formatter "style=blue" --documenter "logo=assets/logo.png"
+jtc config --formatter style=blue
 ```
 
 ### Plugin Information
@@ -120,33 +137,11 @@ jtc plugin-info
 
 # Show details for a specific plugin
 jtc plugin-info Formatter
-```
+````
 
 ## Configuration
 
 jtc supports user-configurable defaults to streamline package creation. Configuration is stored in `~/$XDG_CONFIG_HOME/jtc/config.toml` (default is `~/.config/jtc/config.toml`) following XDG Base Directory standards.
-
-### Setting Defaults
-
-```bash
-# Set default author name
-jtc config set --author "Your Name"
-
-# Set default license
-jtc config set --license Apache
-
-# Set default template type
-jtc config set --template full
-
-# Set plugin-specific defaults
-jtc config set --formatter "style=blue margin=92"
-
-# Set multiple defaults at once
-jtc config set --author "Your Name" --license MIT --template standard --formatter "style=sciml"
-
-# View current configuration
-jtc config show
-```
 
 ### Configuration File Format
 
@@ -158,7 +153,8 @@ author = "Your Name"
 user = "github_username"
 mail = "your.email@example.com"
 license = "MIT"
-template = "standard"
+mise_filename_base = ".mise"
+with_mise = true
 
 [default.formatter]
 style = "blue"
@@ -180,11 +176,12 @@ For example, if you have `author = "Config Author"` in your config file but run 
 - **user**: Git hosting username for repository URLs and CI
 - **mail**: Email address for package metadata
 - **license**: Default license type (`MIT`, `Apache`, `BSD2`, `BSD3`, `GPL2`, `GPL3`, `MPL`, `ISC`, `LGPL2`, `LGPL3`, `AGPL3`, `EUPL`)
-- **template**: Default template type (`minimal`, `standard`, `full`)
+- **mise-filename-base**: Base name for mise config file (e.g., `.mise` creates `.mise.toml`, `mise` creates `mise.toml`)
+- **with-mise**: Enable/disable mise task file generation (default: enabled)
 
 #### Plugin Options
 
-All PkgTemplates.jl plugins are supported with their respective options:
+All [PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) plugins are supported with their respective options:
 
 - **CompatHelper**: Automated dependency updates
 - **TagBot**: Automated GitHub releases
@@ -203,15 +200,6 @@ Use `jtc plugin-info [plugin_name]` to see available options for each plugin.
 Configuration files are stored in `~/.config/jtc/config.toml` following XDG Base Directory standards.
 
 If `XDG_CONFIG_HOME` environment variable is set, that location will be used instead.
-
-## Beta Release Notes
-
-- This beta version includes comprehensive plugin support and enhanced configuration management
-- All major PkgTemplates.jl plugins are supported with full configuration options
-- Shell completion is available for fish shell
-- Enhanced CLI with subcommands for better user experience
-- Configuration system supports both core settings and plugin-specific options
-- Please report issues on the GitHub repository
 
 ## Development
 
@@ -241,12 +229,21 @@ uv run pytest tests/test_cli.py::TestCreateCommand::test_create_with_valid_packa
 # Type checking with pyright
 uv run pyright
 
+# Linting with ruff
+uv run ruff check
+
 # Install from source for testing
 uv tool install .
 ```
 
 ## Release
 
-The project uses semantic versioning with automated GitHub releases. For detailed CI/CD workflow information, see [`docs/workflow.md`](docs/workflow.md).
+The project uses semantic versioning with automated GitHub releases.
+For detailed CI/CD workflow information, see [`docs/workflow.md`](docs/workflow.md).
 
-**For maintainers**: Create PR with title containing "release". GitHub Actions will automatically update the title to "release: v{version}" and handle the release process.
+**For maintainers**: Create PR with title containing "release".
+GitHub Actions will automatically update the title to "release: v{version}" and handle the release process.
+
+## Related Projects
+
+- [jlpkg](https://github.com/fredrikekre/jlpkg): Pkg.jl-related CLI. If you use jlpkg, you may not need mise tasks integration in jtc.
