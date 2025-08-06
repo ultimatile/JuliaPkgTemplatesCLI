@@ -238,11 +238,40 @@ uv tool install .
 
 ## Release
 
-The project uses semantic versioning with automated GitHub releases.
-For detailed CI/CD workflow information, see [`docs/workflow.md`](docs/workflow.md).
+The project uses manual release management with mise task automation:
 
-**For maintainers**: Create PR with title containing "release".
-GitHub Actions will automatically update the title to "release: v{version}" and handle the release process.
+```bash
+# Complete release workflow (prepare + publish + restore branch)
+mise run release-full
+
+# Individual release steps:
+mise run release        # Prepare release (version bump, commit, tag, push)
+mise run publish        # Create GitHub release
+mise run restore-branch # Return to original branch (Optional)
+mise run clean-env      # Clean environment variables
+```
+
+> [!WARNING]
+> mise writes environment variables to the mise.toml file during release tasks.
+> Ensure running `mise run clean-env` after release.
+> `release-full` automatically runs `clean-env` after the release process.
+
+### Version History
+
+Current release tags: `v0.4.0`, `v0.3.0`, `v0.2.0`, `v0.1.2`, `v0.1.1`, `v0.1.0`
+
+### Troubleshooting
+
+```bash
+# Check current version
+grep version pyproject.toml
+
+# Check tag sequence
+git tag --sort=version:refname
+
+# Check mise environment variables
+mise env | grep -E "(VERSION|BRANCH)"
+```
 
 ## Related Projects
 
