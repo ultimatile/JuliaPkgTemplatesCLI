@@ -1,0 +1,209 @@
+# mise configuration for JuliaPkgTemplatesCLI
+
+[tasks.set-current-version]
+run = """
+#!/bin/bash
+set -euo pipefail
+mise set CURRENT_VERSION="$(gsed -n -E 's/.*(version[[:space:]]*=[[:space:]]*")([^"]*)(")/\\2/p' pyproject.toml)" || exit 1
+"""
+hide = true
+
+[tasks.set-next-version]
+run = """
+#!/bin/bash
+set -euo pipefail
+mise set NEXT_VERSION="$(uv run semantic-release version --print 2>/dev/null)" || exit 1
+"""
+hide = true
+
+[tasks.set-release-version]
+depends = ["set-current-version", "set-next-version"]
+run = """
+#!/bin/bash
+set -euo pipefail
+if [ -z "$NEXT_VERSION" ] || [ "$NEXT_VERSION" = "$CURRENT_VERSION" ]; then
+    echo "${RED}No version change detected${RESET}"
+    echo "${YELLOW}Make sure you have semantic commits (feat:, fix:, etc.)${RESET}"
+    exit 1
+fi
+echo "${CYAN}Version bump will be v$CURRENT_VERSION → v$NEXT_VERSION${RESET}"
+mise set RELEASE_VERSION="$NEXT_VERSION"
+"""
+hide = true
+
+[tasks.release-confirm]
+description = "Confirm release version"
+depends = ["set-release-version"]
+confirm = "Proceed with release v${RELEASE_VERSION}?"
+run = """
+#!/bin/bash
+set -euo pipefail
+echo "${GREEN}Release v$RELEASE_VERSION confirmed${RESET}"
+"""
+hide = true
+
+[tasks.ensure-main-branch]
+description = "Ensure we're on main branch for release"
+run = """
+#!/bin/bash
+set -euo pipefail
+mise set ORIGINAL_BRANCH="$(git branch --show-current)"
+# Switch to main if not already there
+if [ "$ORIGINAL_BRANCH" != "main" ]; then
+    echo "${CYAN}Switching to main branch...${RESET}"
+    git switch main
+    echo "${GREEN}Switched to main branch${RESET}"
+fi
+"""
+hide = true
+
+[tasks.version-bump]
+description = "Update version in pyproject.toml"
+depends = ["release-confirm", "ensure-main-branch", "check"]
+run = """
+#!/bin/bash
+set -euo pipefail
+echo "${CYAN}Updating version to $RELEASE_VERSION...${RESET}"
+gsed -i -E 's/(version[[:space:]]*=[[:space:]]*")[^"]*(")/\\1${RELEASE_VERSION}\\2/' pyproject.toml
+uv sync
+echo "${GREEN}Version updated to $RELEASE_VERSION${RESET}"
+"""
+hide = true
+
+[tasks.git-tag]
+description = "Create release commit and tag"
+depends = ["version-bump"]
+run = """
+#!/bin/bash
+set -euo pipefail
+echo "${CYAN}Creating release commit and tag...${RESET}"
+git add pyproject.toml uv.lock
+git commit -m "release: v$RELEASE_VERSION"
+git tag "v$RELEASE_VERSION"
+echo "${GREEN}Release v$RELEASE_VERSION prepared locally${RESET}"
+"""
+hide = true
+
+[tasks.git-push]
+description = "Push commits and tags to GitHub"
+depends = ["git-tag"]
+run = """
+#!/bin/bash
+set -euo pipefail
+echo "${CYAN}Pushing to GitHub...${RESET}"
+git push origin main --tags
+echo "${GREEN}Pushed v$RELEASE_VERSION to GitHub${RESET}"
+"""
+hide = true
+
+[tasks.restore-branch]
+description = "Restore original branch"
+run = """
+#!/bin/bash
+set -euo pipefail
+if [ -n "${ORIGINAL_BRANCH:-}" ] && [ "$ORIGINAL_BRANCH" != "main" ]; then
+    echo "${CYAN}Restoring original branch: $ORIGINAL_BRANCH${RESET}"
+    git checkout "$ORIGINAL_BRANCH"
+    echo "${GREEN}Restored to $ORIGINAL_BRANCH${RESET}"
+else
+    echo "${GRAY}Staying on main branch${RESET}"
+fi
+"""
+hide = true
+
+[tasks.release-summary]
+description = "Show release summary and next steps"
+run = """
+#!/bin/bash
+set -euo pipefail
+echo
+echo "${GREEN}Release v$RELEASE_VERSION prepared successfully${RESET}"
+echo
+echo "Next steps:"
+echo "1. Create GitHub release: mise run publish"
+echo "2. Restore original branch: mise run restore-branch"
+echo "3. Clean environment: mise run clean-env"
+"""
+
+[tasks.release]
+description = "Complete release preparation workflow"
+depends = ["git-push"]
+depends_post = ["release-summary"]
+run = "echo 'Release workflow completed'"
+
+[tasks.publish-confirm]
+description = "Confirm GitHub release creation"
+confirm = "Create GitHub release for v${RELEASE_VERSION}?"
+run = """
+#!/bin/bash
+set -euo pipefail
+echo "${GREEN}GitHub release creation confirmed for v$RELEASE_VERSION${RESET}"
+"""
+
+[tasks.publish]
+description = "Create GitHub release"
+depends = ["publish-confirm"]
+run = """
+#!/bin/bash
+set -euo pipefail
+if command -v gh &> /dev/null; then
+    echo "${CYAN}Creating GitHub release...${RESET}"
+    gh release create "v$RELEASE_VERSION" --generate-notes
+    echo "${GREEN}GitHub release v$RELEASE_VERSION published${RESET}"
+else
+    echo "${YELLOW}GitHub CLI not found. Create release manually:${RESET}"
+    echo "   https://github.com/ultimatile/JuliaPkgTemplatesCLI/releases/new?tag=v$RELEASE_VERSION"
+fi
+"""
+
+[tasks.release-full]
+description = "Complete release workflow (prepare + publish + restore)"
+depends = ["release", "publish"]
+depends_post = ["restore-branch"]
+run = "echo 'Full release workflow completed'"
+
+# Development tasks
+[tasks.test]
+description = "Run all tests"
+run = "uv run pytest -v"
+alias = "t"
+
+[tasks.typecheck]
+description = "Run type checking"
+run = "uv run pyright src/juliapkgtemplates/"
+alias = "c"
+
+[tasks.lint]
+description = "Run linting and formatting"
+run = ["uv run ruff check", "uv run ruff format"]
+alias = "l"
+
+[tasks.check]
+description = "Run all checks (test + typecheck + lint)"
+run = ["mise run test typecheck lint --jobs=1"]
+alias = "tcl"
+
+[tasks.clean-artifacts]
+description = "Clean build artifacts"
+run = [
+  "rm -rf dist/",
+  "rm -rf test_output/",
+  "find . -name '__pycache__' -type d -exec rm -rf {} + 2>/dev/null || true",
+  "find . -name '*.pyc' -delete 2>/dev/null || true",
+  "echo \"${GREEN}Cleaned build artifacts${RESET}\"",
+]
+
+[tasks.clean-env]
+description = "Clean mise environment variables"
+run = "mise unset RELEASE_VERSION CURRENT_VERSION NEXT_VERSION ORIGINAL_BRANCH"
+hide = true
+
+# Keep [env] at the bottom; mise set/unset moves it there from anywhere.
+[env]
+# Terminal colors
+RED = "$(tput setaf 1)"
+GREEN = "$(tput setaf 2)"
+YELLOW = "$(tput setaf 3)"
+CYAN = "$(tput setaf 6)"
+GRAY = "$(tput setaf 8)"
+RESET = "$(tput sgr0)"
