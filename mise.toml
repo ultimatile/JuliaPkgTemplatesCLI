@@ -180,7 +180,7 @@ alias = "l"
 
 [tasks.check]
 description = "Run all checks (test + typecheck + lint)"
-run = ["mise run test typecheck lint --jobs=1"]
+run = ["mise run --jobs=1 test ::: typecheck ::: lint"]
 alias = "tcl"
 
 [tasks.clean-artifacts]
@@ -207,3 +207,6 @@ YELLOW = "$(tput setaf 3)"
 CYAN = "$(tput setaf 6)"
 GRAY = "$(tput setaf 8)"
 RESET = "$(tput sgr0)"
+CURRENT_VERSION = "0.3.0"
+ORIGINAL_BRANCH = "main"
+NEXT_VERSION = "0.4.0"
