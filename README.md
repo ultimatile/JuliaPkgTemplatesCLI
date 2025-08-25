@@ -63,6 +63,9 @@ uv tool install .
 - pytest (testing)
 - pyright (type checking)
 - ruff (code linting)
+- make (build automation)
+- python-semantic-release (automated versioning)
+- GitHub CLI (`gh`) (optional, for automated release creation)
 
 ## Shell Completion
 
@@ -217,44 +220,67 @@ uv sync
 # Run the CLI tool
 uv run jtc --help
 
-# Run tests (all)
-uv run pytest
-
-# Run tests with verbose output
-uv run pytest -v
-
-# Run specific test
-uv run pytest tests/test_cli.py::TestCreateCommand::test_create_with_valid_package_name -v
-
-# Type checking with pyright
-uv run pyright
-
-# Linting with ruff
-uv run ruff check
-
 # Install from source for testing
 uv tool install .
 ```
 
+#### Testing and Quality Assurance
+
+```bash
+# Run tests
+make test                    # or make t
+
+# Run type checking
+make typecheck              # or make c
+
+# Run linting and formatting
+make lint                   # or make l
+
+# Run all checks (test + typecheck + lint)
+make check                  # or make tcl
+
+# Run specific test
+uv run pytest tests/test_cli.py::TestCreateCommand::test_create_with_valid_package_name -v
+
+# Clean build artifacts
+make clean-artifacts
+```
+
+#### Release Management
+
+```bash
+# Show available commands
+make help
+
+# Complete release workflow (automated)
+make release-full
+
+# Manual release steps:
+make release                # Prepare release (version bump, commit, tag, push)
+make publish                # Create GitHub release
+make restore-branch         # Return to original branch
+
+# Debug version information
+make debug-vars
+```
+
 ## Release
 
-The project uses manual release management with mise task automation:
+The project uses manual release management with Makefile automation:
 
 ```bash
 # Complete release workflow (prepare + publish + restore branch)
-mise run release-full
+make release-full
 
 # Individual release steps:
-mise run release        # Prepare release (version bump, commit, tag, push)
-mise run publish        # Create GitHub release
-mise run restore-branch # Return to original branch (Optional)
-mise run clean-env      # Clean environment variables
-```
+make release                # Prepare release (version bump, commit, tag, push)
+make publish                # Create GitHub release
+make restore-branch         # Return to original branch
 
-> [!WARNING]
-> mise writes environment variables to the mise.toml file during release tasks.
-> Ensure running `mise run clean-env` after release.
-> `release-full` automatically runs `clean-env` after the release process.
+# Debug and troubleshooting:
+make debug-vars             # Show version information
+make help                  # Show all available targets
+```
 
 ### Version History
 
@@ -263,14 +289,17 @@ Current release tags: `v0.4.0`, `v0.3.0`, `v0.2.0`, `v0.1.2`, `v0.1.1`, `v0.1.0`
 ### Troubleshooting
 
 ```bash
-# Check current version
+# Check current version information
+make debug-vars
+
+# Check current version in pyproject.toml
 grep version pyproject.toml
 
 # Check tag sequence
 git tag --sort=version:refname
 
-# Check mise environment variables
-mise env | grep -E "(VERSION|BRANCH)"
+# Test semantic-release version detection
+uv run semantic-release version --print
 ```
 
 ## Related Projects
