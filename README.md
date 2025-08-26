@@ -30,9 +30,6 @@ You can install directly from the GitHub repository:
 ```bash
 # Install from the latest commit on main branch
 uv tool install git+https://github.com/ultimatile/JuliaPkgTemplatesCLI.git
-
-# Install from a specific release tag
-uv tool install git+https://github.com/ultimatile/JuliaPkgTemplatesCLI.git@v0.3.0
 ```
 
 ### From Source
@@ -262,44 +259,6 @@ make restore-branch         # Return to original branch
 
 # Debug version information
 make debug-vars
-```
-
-## Release
-
-The project uses manual release management with Makefile automation:
-
-```bash
-# Complete release workflow (prepare + publish + restore branch)
-make release-full
-
-# Individual release steps:
-make release                # Prepare release (version bump, commit, tag, push)
-make publish                # Create GitHub release
-make restore-branch         # Return to original branch
-
-# Debug and troubleshooting:
-make debug-vars             # Show version information
-make help                  # Show all available targets
-```
-
-### Version History
-
-Current release tags: `v0.4.0`, `v0.3.0`, `v0.2.0`, `v0.1.2`, `v0.1.1`, `v0.1.0`
-
-### Troubleshooting
-
-```bash
-# Check current version information
-make debug-vars
-
-# Check current version in pyproject.toml
-grep version pyproject.toml
-
-# Check tag sequence
-git tag --sort=version:refname
-
-# Test semantic-release version detection
-uv run semantic-release version --print
 ```
 
 ## Related Projects
