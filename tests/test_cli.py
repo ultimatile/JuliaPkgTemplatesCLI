@@ -255,6 +255,85 @@ class TestCreateCommand:
                 assert call_args[0][2] is None  # user (position 2)
                 assert call_args[0][3] is None  # mail (position 3)
 
+    def test_create_with_cli_license_option(self, cli_runner, temp_dir):
+        """Test create command with --license option (using non-MIT license to verify it works)"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--license",
+                        "Apache",
+                        "--output-dir",
+                        str(temp_dir),
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_instance.create_package.assert_called_once()
+
+                # Check that license was passed correctly
+                call_args = mock_instance.create_package.call_args
+                config = call_args[0][5]  # PackageConfig is position 5
+                assert config.license_type == "Apache"
+
+    def test_create_with_cli_license_ptj_native(self, cli_runner, temp_dir):
+        """Test create command with PkgTemplates.jl native license identifier"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--license",
+                        "GPL-3.0+",
+                        "--output-dir",
+                        str(temp_dir),
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_instance.create_package.assert_called_once()
+
+                # Check that PTJ native license passes through
+                call_args = mock_instance.create_package.call_args
+                config = call_args[0][5]  # PackageConfig is position 5
+                assert config.license_type == "GPL-3.0+"
+
+    def test_create_with_config_license_generates_license_plugin(
+        self, cli_runner, temp_dir, isolated_config
+    ):
+        """Test that config file license setting actually generates License plugin in Julia code"""
+        from juliapkgtemplates.cli import save_config
+        from juliapkgtemplates.generator import JuliaPackageGenerator, PackageConfig
+
+        # Set license in isolated config
+        config_data = {"default": {"license_type": "Apache"}}
+        save_config(config_data)
+
+        # Create package and check generated Julia code
+        generator = JuliaPackageGenerator()
+        julia_code = generator.generate_julia_code(
+            "TestPackage",
+            None,
+            None,
+            None,
+            temp_dir,
+            PackageConfig.from_dict({"license_type": "Apache"}),
+        )
+
+        # Verify License plugin is generated
+        assert 'License(; name="ASL")' in julia_code
+
     def test_create_with_custom_mise_filename_base(self, cli_runner, temp_dir):
         """Test create command with custom mise filename base"""
         with patch("juliapkgtemplates.cli.load_config", return_value={}):
