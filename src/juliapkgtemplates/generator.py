@@ -257,9 +257,12 @@ class JuliaPackageGenerator:
             "CompatHelper": lambda: self._build_compathelper_plugin(plugin_options),
         }
 
-        # Auto-enable License plugin when license_type is specified
+        # Auto-enable License plugin when license_type is specified or License plugin options exist
         plugins_to_process = list(enabled_plugins or [])
-        if license_type and "License" not in plugins_to_process:
+        has_license_options = plugin_options and "License" in plugin_options
+        if (
+            license_type or has_license_options
+        ) and "License" not in plugins_to_process:
             plugins_to_process.append("License")
 
         for plugin_name in plugins_to_process:
@@ -291,18 +294,38 @@ class JuliaPackageGenerator:
         license_type: Optional[str],
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Optional[str]:
-        """Create License plugin when license is specified, deferring to PkgTemplates.jl defaults otherwise"""
-        if not license_type:
-            return None
-        mapped_license = self._map_license(license_type)
+        """Create License plugin with full support for all License plugin parameters"""
+        license_options = {}
 
-        # Override with plugin options if provided
+        # Handle legacy license_type parameter
+        if license_type:
+            mapped_license = self._map_license(license_type)
+            license_options["name"] = mapped_license
+
+        # Apply plugin options (takes precedence over legacy license_type)
         if plugin_options and "License" in plugin_options:
             options = plugin_options["License"]
-            if "name" in options:
-                mapped_license = options["name"]
+            for key, value in options.items():
+                if key == "name":
+                    # Apply license mapping to name parameter
+                    license_options["name"] = self._map_license(value)
+                else:
+                    # Pass other parameters through unchanged
+                    license_options[key] = value
 
-        return f'License(; name="{mapped_license}")'
+        # Return None if no license specified
+        if not license_options:
+            return None
+
+        # Build License plugin with all specified options
+        option_strings = []
+        for key, value in license_options.items():
+            if isinstance(value, str):
+                option_strings.append(f'{key}="{value}"')
+            else:
+                option_strings.append(f"{key}={value}")
+
+        return f"License(; {', '.join(option_strings)})"
 
     def _build_git_plugin(
         self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None

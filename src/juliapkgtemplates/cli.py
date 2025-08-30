@@ -248,6 +248,16 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
     return options
 
 
+def handle_license_option(license_value: str) -> dict:
+    """Parse license option supporting both simple and key=value formats"""
+    if "=" in license_value:
+        # Formal format: key=value pairs
+        return parse_multiple_key_value_pairs(license_value)
+    else:
+        # Simple format: direct license name
+        return {"name": license_value}
+
+
 def parse_plugin_options_from_cli(**kwargs) -> dict:
     """Transform CLI plugin arguments into structured configuration dict"""
     plugin_options = {}
@@ -277,6 +287,12 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
                 if options:
                     plugin_options[plugin_name].update(options)
             # Empty string: enable with defaults (no additional options)
+
+    # Handle license option specially to support both formats
+    if "license" in kwargs and kwargs["license"] is not None:
+        license_value = kwargs["license"]
+        if license_value:  # Non-empty license value
+            plugin_options["License"] = handle_license_option(license_value)
 
     return plugin_options
 
@@ -418,7 +434,7 @@ def create(
     flat_config = flatten_config_for_backward_compatibility(config)
     defaults = flat_config.get("default", {})
 
-    cli_plugin_options = parse_plugin_options_from_cli(**kwargs)
+    cli_plugin_options = parse_plugin_options_from_cli(license=license, **kwargs)
 
     # Extract enabled plugins from plugin options
     # Plugins are enabled when their options are specified (not None)
@@ -445,9 +461,6 @@ def create(
     # Build final configuration with proper precedence
     final_config = {}
     final_config["enabled_plugins"] = enabled_plugins
-    final_config["license_type"] = (
-        license or defaults.get("license_type") or defaults.get("license")
-    )
     final_config["julia_version"] = julia_version or defaults.get("julia_version")
     final_config["mise_filename_base"] = final_mise_filename_base
     final_config["with_mise"] = final_with_mise
@@ -458,6 +471,12 @@ def create(
     # Apply CLI plugin options (these are the enabled plugins)
     for plugin, options in cli_plugin_options.items():
         final_plugin_options[plugin] = options.copy()
+
+    # Handle legacy license_type from config for backward compatibility
+    config_license = defaults.get("license_type") or defaults.get("license")
+    if config_license and "License" not in final_plugin_options:
+        # Add config license as License plugin option if no CLI license specified
+        final_plugin_options["License"] = {"name": config_license}
 
     # Then, apply config file options only for CLI-enabled plugins
     if enabled_plugins:  # Only if there are CLI-enabled plugins
@@ -596,16 +615,23 @@ def plugin_info(plugin_name: Optional[str]):
 
     elif plugin_name_matched == "License":
         click.echo("Options:")
+        click.echo("  name=license_name           - License identifier")
         click.echo(
-            "  The --license option accepts PkgTemplates.jl license identifiers directly"
+            "  path=license_file_path      - Custom license file path (optional)"
         )
         click.echo(
-            f"  Additionally supports these aliases: {' '.join(JuliaPackageGenerator.LICENSE_MAPPING.keys())}"
+            "  destination=filename        - License file name (optional, default: LICENSE)"
+        )
+        click.echo(
+            f"\nLicense aliases supported: {' '.join(JuliaPackageGenerator.LICENSE_MAPPING.keys())}"
         )
         click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --license MIT")
-        click.echo("  jtc create MyPkg --license Apache")
-        click.echo("  jtc create MyPkg --license GPL-3.0+")
+        click.echo("  jtc create MyPkg --license MIT                    # Simple form")
+        click.echo("  jtc create MyPkg --license name=Apache           # Explicit form")
+        click.echo("  jtc create MyPkg --license 'name=MIT path=./my-license.txt'")
+        click.echo(
+            "  jtc create MyPkg --license 'name=GPL-3.0+ destination=LICENSE.txt'"
+        )
 
     else:
         click.echo(f"No specific help available for {plugin_name_matched} plugin.")
