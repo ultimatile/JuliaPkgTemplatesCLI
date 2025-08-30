@@ -44,8 +44,8 @@ uv tool install .
 
 ## Prerequisites
 
-- Python 3.11 or higher
-- Julia 1.6 or higher
+- Python 3.10 or higher
+- Julia 1.0 or higher
 - [PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) installed in Julia. Currently This package is based on PkgTemplates.jl v0.7.56 but doesn’t lock its version, so it may break if users install a newer PkgTemplates.jl release.
 - [mise](https://github.com/jdx/mise) (optional, for mise task integration)
 
