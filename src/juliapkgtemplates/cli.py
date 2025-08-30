@@ -3,6 +3,7 @@ New CLI interface with dynamic plugin options
 """
 
 import os
+import subprocess
 import sys
 from pathlib import Path
 from typing import Optional
@@ -577,65 +578,88 @@ def plugin_info(plugin_name: Optional[str]):
     click.echo(f"Help for {plugin_name_matched} plugin:")
     click.echo("=" * 40)
 
-    if plugin_name_matched == "Git":
-        click.echo("Options:")
-        click.echo(
-            "  manifest=true/false  - Include/exclude Manifest.toml (default: false)"
-        )
-        click.echo(
-            "  ssh=true/false       - Use SSH for Git operations (default: false)"
-        )
-        click.echo("  ignore=[pattern,...]  - Git ignore patterns (default: none)")
-        click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --git 'manifest=false ssh=true'")
+    # Delegate to Julia's documentation system
+    try:
+        julia_doc_cmd = [
+            "julia",
+            "-e",
+            f"using REPL, Markdown, PkgTemplates; "
+            f"Markdown.term(IOContext(stdout, :color=>true), "
+            f'Base.Docs.doc(Base.Docs.Binding(PkgTemplates, Symbol("{plugin_name_matched}"))))',
+        ]
 
-    elif plugin_name_matched == "Tests":
-        click.echo("Options:")
-        click.echo(
-            "  project=true/false   - Separate project for tests (default: true)"
+        result = subprocess.run(
+            julia_doc_cmd, capture_output=True, text=True, check=True
         )
-        click.echo("  aqua=true/false      - Enable Aqua.jl testing (default: false)")
-        click.echo("  jet=true/false       - Enable JET.jl testing (default: false)")
-        click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --tests 'aqua=true jet=true'")
+        click.echo(result.stdout)
 
-    elif plugin_name_matched == "Formatter":
-        click.echo("Options:")
-        click.echo(
-            "  style=nostyle/blue/sciml/yas  - JuliaFormatter style (default: nostyle)"
-        )
-        click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --formatter style=blue")
+        # Add usage examples specific to jtc CLI
+        _add_jtc_plugin_examples(plugin_name_matched)
 
-    elif plugin_name_matched == "ProjectFile":
-        click.echo("Options:")
-        click.echo("  version=x.y.z        - Initial package version (default: 0.0.1)")
-        click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --project-file version=1.0.0")
-
-    elif plugin_name_matched == "License":
-        click.echo("Options:")
-        click.echo("  name=license_name           - License identifier")
+    except subprocess.CalledProcessError as e:
+        # Fallback to basic message if Julia doc system fails
         click.echo(
-            "  path=license_file_path      - Custom license file path (optional)"
+            f"Could not retrieve documentation for {plugin_name_matched} plugin from Julia."
         )
         click.echo(
-            "  destination=filename        - License file name (optional, default: LICENSE)"
+            "This may indicate that Julia or PkgTemplates.jl is not properly installed."
         )
         click.echo(
-            f"\nLicense aliases supported: {' '.join(JuliaPackageGenerator.LICENSE_MAPPING.keys())}"
-        )
-        click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --license MIT                    # Simple form")
-        click.echo("  jtc create MyPkg --license name=Apache           # Explicit form")
-        click.echo("  jtc create MyPkg --license 'name=MIT path=./my-license.txt'")
-        click.echo(
-            "  jtc create MyPkg --license 'name=GPL-3.0+ destination=LICENSE.txt'"
+            f"\nError details: {e.stderr.strip() if e.stderr else 'Unknown error'}"
         )
 
+        # Provide basic usage info as fallback
+        click.echo("\nBasic usage:")
+        plugin_option_name = _get_plugin_cli_option_name(plugin_name_matched)
+        click.echo(f"  jtc create MyPkg {plugin_option_name}")
+        click.echo(f"  jtc create MyPkg {plugin_option_name} 'key=value'")
+    except FileNotFoundError:
+        click.echo(
+            "Julia not found. Please install Julia and ensure it's in your PATH."
+        )
+        sys.exit(1)
+
+
+def _get_plugin_cli_option_name(plugin_name: str) -> str:
+    """Get CLI option name for a plugin"""
+    plugin_option_names = {
+        "Git": "--git",
+        "Tests": "--tests",
+        "Formatter": "--formatter",
+        "ProjectFile": "--project-file",
+        "GitHubActions": "--github-actions",
+        "Codecov": "--codecov",
+        "Documenter": "--documenter",
+        "TagBot": "--tagbot",
+        "CompatHelper": "--compat-helper",
+        "License": "--license",
+    }
+    return plugin_option_names.get(plugin_name, f"--{plugin_name.lower()}")
+
+
+def _add_jtc_plugin_examples(plugin_name: str):
+    """Add jtc-specific usage examples for plugins"""
+    plugin_option = _get_plugin_cli_option_name(plugin_name)
+
+    click.echo("\njtc CLI usage examples:")
+    click.echo("=" * 25)
+
+    if plugin_name == "License":
+        click.echo(f"  jtc create MyPkg {plugin_option} MIT")
+        click.echo(f"  jtc create MyPkg {plugin_option} 'name=Apache'")
+        click.echo(
+            f"  jtc create MyPkg {plugin_option} 'name=MIT path=./custom-license.txt'"
+        )
+        click.echo(
+            f"\nLicense aliases: {' '.join(JuliaPackageGenerator.LICENSE_MAPPING.keys())}"
+        )
     else:
-        click.echo(f"No specific help available for {plugin_name_matched} plugin.")
-        click.echo("This plugin typically has no configurable options.")
+        click.echo(f"  jtc create MyPkg {plugin_option}")
+        click.echo(
+            f"  jtc create MyPkg {plugin_option} 'option1=value1 option2=value2'"
+        )
+
+    click.echo("\nFor more plugin configuration examples, see: jtc create --help")
 
 
 @main.command()
