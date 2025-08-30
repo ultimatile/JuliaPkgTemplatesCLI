@@ -334,6 +334,106 @@ class TestCreateCommand:
         # Verify License plugin is generated
         assert 'License(; name="ASL")' in julia_code
 
+    def test_create_with_license_simple_format(self, cli_runner, temp_dir):
+        """Test create command with --license simple format (direct license name)"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--license",
+                        "Apache",
+                        "--output-dir",
+                        str(temp_dir),
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_instance.create_package.assert_called_once()
+
+                # Check that License plugin options were set correctly
+                call_args = mock_instance.create_package.call_args
+                config = call_args[0][5]  # PackageConfig is position 5
+                assert "License" in config.plugin_options
+                assert config.plugin_options["License"]["name"] == "Apache"
+
+    def test_create_with_license_keyvalue_format(self, cli_runner, temp_dir):
+        """Test create command with --license key=value format"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--license",
+                        "name=MIT path=./my-license.txt",
+                        "--output-dir",
+                        str(temp_dir),
+                    ],
+                )
+
+                assert result.exit_code == 0
+                mock_instance.create_package.assert_called_once()
+
+                # Check that License plugin options were set correctly
+                call_args = mock_instance.create_package.call_args
+                config = call_args[0][5]  # PackageConfig is position 5
+                assert "License" in config.plugin_options
+                assert config.plugin_options["License"]["name"] == "MIT"
+                assert config.plugin_options["License"]["path"] == "./my-license.txt"
+
+    def test_create_license_plugin_generation_simple_format(self, temp_dir):
+        """Test that simple license format generates correct License plugin in Julia code"""
+        from juliapkgtemplates.generator import JuliaPackageGenerator, PackageConfig
+
+        # Test simple format
+        generator = JuliaPackageGenerator()
+        config = PackageConfig.from_dict(
+            {"plugin_options": {"License": {"name": "Apache"}}}
+        )
+        julia_code = generator.generate_julia_code(
+            "TestPackage", None, None, None, temp_dir, config
+        )
+
+        # Verify License plugin is generated with correct mapping
+        assert 'License(; name="ASL")' in julia_code
+
+    def test_create_license_plugin_generation_keyvalue_format(self, temp_dir):
+        """Test that key=value license format generates correct License plugin in Julia code"""
+        from juliapkgtemplates.generator import JuliaPackageGenerator, PackageConfig
+
+        # Test key=value format with multiple options
+        generator = JuliaPackageGenerator()
+        config = PackageConfig.from_dict(
+            {
+                "plugin_options": {
+                    "License": {
+                        "name": "MIT",
+                        "path": "./my-license.txt",
+                        "destination": "LICENSE.txt",
+                    }
+                }
+            }
+        )
+        julia_code = generator.generate_julia_code(
+            "TestPackage", None, None, None, temp_dir, config
+        )
+
+        # Verify License plugin is generated with all options
+        assert (
+            'License(; name="MIT", path="./my-license.txt", destination="LICENSE.txt")'
+            in julia_code
+        )
+
     def test_create_with_custom_mise_filename_base(self, cli_runner, temp_dir):
         """Test create command with custom mise filename base"""
         with patch("juliapkgtemplates.cli.load_config", return_value={}):
