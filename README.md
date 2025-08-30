@@ -118,7 +118,7 @@ jtc --version
 
 ### Configuration Management
 
-````bash
+```bash
 # Show current configuration
 jtc config # or jtc config show
 
@@ -137,7 +137,7 @@ jtc plugin-info
 
 # Show details for a specific plugin
 jtc plugin-info Formatter
-````
+```
 
 ## Configuration
 
@@ -181,7 +181,7 @@ For example, if you have `author = "Config Author"` in your config file but run 
 
 #### Plugin Options
 
-All [PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) plugins are supported with their respective options:
+[PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) plugins below are currently supported with their respective options:
 
 - **CompatHelper**: Automated dependency updates
 - **TagBot**: Automated GitHub releases
