@@ -233,7 +233,10 @@ class TestCreateCommand:
                 assert call_args[0][1] == "Config Author"  # author (position 1)
                 assert call_args[0][2] == "configuser"  # user (position 2)
                 assert call_args[0][3] == "config@example.com"  # mail (position 3)
-                assert call_args[0][5].license_type == "Apache"  # config (position 5)
+                # License is now handled as plugin option, not license_type field
+                config = call_args[0][5]  # PackageConfig is position 5
+                assert "License" in config.plugin_options
+                assert config.plugin_options["License"]["name"] == "Apache"
 
     def test_create_no_author_delegates_to_pkgtemplates(self, cli_runner, temp_dir):
         """Test create command delegates to PkgTemplates.jl when no author provided"""
@@ -280,7 +283,9 @@ class TestCreateCommand:
                 # Check that license was passed correctly
                 call_args = mock_instance.create_package.call_args
                 config = call_args[0][5]  # PackageConfig is position 5
-                assert config.license_type == "Apache"
+                # License is now handled as plugin option
+                assert "License" in config.plugin_options
+                assert config.plugin_options["License"]["name"] == "Apache"
 
     def test_create_with_cli_license_ptj_native(self, cli_runner, temp_dir):
         """Test create command with PkgTemplates.jl native license identifier"""
@@ -307,7 +312,9 @@ class TestCreateCommand:
                 # Check that PTJ native license passes through
                 call_args = mock_instance.create_package.call_args
                 config = call_args[0][5]  # PackageConfig is position 5
-                assert config.license_type == "GPL-3.0+"
+                # License is now handled as plugin option
+                assert "License" in config.plugin_options
+                assert config.plugin_options["License"]["name"] == "GPL-3.0+"
 
     def test_create_with_config_license_generates_license_plugin(
         self, cli_runner, temp_dir, isolated_config
