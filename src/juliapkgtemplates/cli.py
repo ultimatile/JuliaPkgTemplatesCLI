@@ -596,12 +596,16 @@ def plugin_info(plugin_name: Optional[str]):
 
     elif plugin_name_matched == "License":
         click.echo("Options:")
-        click.echo("  name=license_name    - License identifier")
-        click.echo("\nExample:")
-        click.echo("  jtc create MyPkg --license Apache-2.0")
         click.echo(
-            "\nNote: --license accepts both common licenses (MIT, Apache, etc.) and custom PkgTemplates.jl license identifiers"
+            "  The --license option accepts PkgTemplates.jl license identifiers directly"
         )
+        click.echo(
+            f"  Additionally supports these aliases: {' '.join(JuliaPackageGenerator.LICENSE_MAPPING.keys())}"
+        )
+        click.echo("\nExample:")
+        click.echo("  jtc create MyPkg --license MIT")
+        click.echo("  jtc create MyPkg --license Apache")
+        click.echo("  jtc create MyPkg --license GPL-3.0+")
 
     else:
         click.echo(f"No specific help available for {plugin_name_matched} plugin.")

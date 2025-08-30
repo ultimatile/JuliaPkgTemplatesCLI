@@ -175,7 +175,7 @@ For example, if you have `author = "Config Author"` in your config file but run 
 - **author**: Default author name for packages
 - **user**: Git hosting username for repository URLs and CI
 - **mail**: Email address for package metadata
-- **license**: Default license type (`MIT`, `Apache`, `BSD2`, `BSD3`, `GPL2`, `GPL3`, `MPL`, `ISC`, `LGPL2`, `LGPL3`, `AGPL3`, `EUPL`)
+- **license**: Default license type (supports all PkgTemplates.jl license identifiers plus aliases: `Apache`, `GPL2`, `GPL3`, `LGPL2`, `LGPL3`, `AGPL3`, `EUPL`)
 - **mise-filename-base**: Base name for mise config file (e.g., `.mise` creates `.mise.toml`, `mise` creates `mise.toml`)
 - **with-mise**: Enable/disable mise task file generation (default: enabled)
 

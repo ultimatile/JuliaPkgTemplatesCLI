@@ -102,14 +102,9 @@ class JuliaPackageGenerator:
 
     # Map user-friendly license names to PkgTemplates.jl license identifiers
     LICENSE_MAPPING = {
-        "MIT": "MIT",
         "Apache": "ASL",
-        "BSD2": "BSD2",
-        "BSD3": "BSD3",
         "GPL2": "GPL-2.0+",
         "GPL3": "GPL-3.0+",
-        "MPL": "MPL",
-        "ISC": "ISC",
         "LGPL2": "LGPL-2.1+",
         "LGPL3": "LGPL-3.0+",
         "AGPL3": "AGPL-3.0+",
@@ -262,7 +257,12 @@ class JuliaPackageGenerator:
             "CompatHelper": lambda: self._build_compathelper_plugin(plugin_options),
         }
 
-        for plugin_name in enabled_plugins or []:
+        # Auto-enable License plugin when license_type is specified
+        plugins_to_process = list(enabled_plugins or [])
+        if license_type and "License" not in plugins_to_process:
+            plugins_to_process.append("License")
+
+        for plugin_name in plugins_to_process:
             if plugin_name in plugin_builders:
                 plugin = plugin_builders[plugin_name]()
                 if plugin:  # Exclude disabled or invalid plugins
