@@ -365,6 +365,7 @@ def main():
 )
 @click.option(
     "--dry-run",
+    "-n",
     is_flag=True,
     default=False,
     help="Show what Julia Template function would be executed without actually running it",
