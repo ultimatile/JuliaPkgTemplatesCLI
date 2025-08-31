@@ -88,16 +88,41 @@ class JuliaPackageGenerator:
 
     # Known PkgTemplates.jl plugins for CLI option generation
     KNOWN_PLUGINS = [
+        # Core plugins
         "Git",
         "License",
         "Tests",
         "Formatter",
         "ProjectFile",
+        "SrcDir",
+        "Readme",
+        # CI/CD plugins
         "GitHubActions",
+        "AppVeyor",
+        "CirrusCI",
+        "DroneCI",
+        "GitLabCI",
+        "TravisCI",
+        # Code coverage plugins
         "Codecov",
+        "Coveralls",
+        # Documentation plugins
         "Documenter",
+        # Automation plugins
         "TagBot",
         "CompatHelper",
+        "Dependabot",
+        # Badge plugins
+        "BlueStyleBadge",
+        "ColPracBadge",
+        "PkgEvalBadge",
+        # Miscellaneous plugins
+        "Develop",
+        "Citation",
+        "RegisterAction",
+        "CodeOwners",
+        "PkgBenchmark",
+        "Runic",
     ]
 
     # Map user-friendly license names to PkgTemplates.jl license identifiers
@@ -245,16 +270,41 @@ class JuliaPackageGenerator:
 
         # Map each plugin type to its configuration builder function
         plugin_builders = {
+            # Core plugins
             "ProjectFile": lambda: self._build_project_file_plugin(plugin_options),
             "License": lambda: self._build_license_plugin(license_type, plugin_options),
             "Git": lambda: self._build_git_plugin(plugin_options),
             "Formatter": lambda: self._build_formatter_plugin(plugin_options),
             "Tests": lambda: self._build_tests_plugin(plugin_options),
+            "SrcDir": lambda: self._build_srcdir_plugin(plugin_options),
+            "Readme": lambda: self._build_readme_plugin(plugin_options),
+            # CI/CD plugins
             "GitHubActions": lambda: self._build_github_actions_plugin(plugin_options),
+            "AppVeyor": lambda: self._build_appveyor_plugin(plugin_options),
+            "CirrusCI": lambda: self._build_cirrusci_plugin(plugin_options),
+            "DroneCI": lambda: self._build_droneci_plugin(plugin_options),
+            "GitLabCI": lambda: self._build_gitlabci_plugin(plugin_options),
+            "TravisCI": lambda: self._build_travisci_plugin(plugin_options),
+            # Code coverage plugins
             "Codecov": lambda: self._build_codecov_plugin(plugin_options),
+            "Coveralls": lambda: self._build_coveralls_plugin(plugin_options),
+            # Documentation plugins
             "Documenter": lambda: self._build_documenter_plugin(plugin_options),
+            # Automation plugins
             "TagBot": lambda: self._build_tagbot_plugin(plugin_options),
             "CompatHelper": lambda: self._build_compathelper_plugin(plugin_options),
+            "Dependabot": lambda: self._build_dependabot_plugin(plugin_options),
+            # Badge plugins
+            "BlueStyleBadge": lambda: self._build_bluestylebadge_plugin(plugin_options),
+            "ColPracBadge": lambda: self._build_colpracbadge_plugin(plugin_options),
+            "PkgEvalBadge": lambda: self._build_pkgevalbadge_plugin(plugin_options),
+            # Miscellaneous plugins
+            "Develop": lambda: self._build_develop_plugin(plugin_options),
+            "Citation": lambda: self._build_citation_plugin(plugin_options),
+            "RegisterAction": lambda: self._build_registeraction_plugin(plugin_options),
+            "CodeOwners": lambda: self._build_codeowners_plugin(plugin_options),
+            "PkgBenchmark": lambda: self._build_pkgbenchmark_plugin(plugin_options),
+            "Runic": lambda: self._build_runic_plugin(plugin_options),
         }
 
         # Auto-enable License plugin when license_type is specified or License plugin options exist
@@ -425,6 +475,253 @@ class JuliaPackageGenerator:
     ) -> str:
         """Build CompatHelper plugin configuration"""
         return "CompatHelper()"
+
+    # Core documentation plugins
+    def _build_srcdir_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure SrcDir plugin - creates src directory structure"""
+        return "SrcDir()"
+
+    def _build_readme_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Readme plugin - generates README.md file"""
+        readme_options = []
+
+        if plugin_options and "Readme" in plugin_options:
+            options = plugin_options["Readme"]
+            if "badge_order" in options:
+                badges = options["badge_order"]
+                if isinstance(badges, list):
+                    badge_list = [f'"{b}"' for b in badges]
+                else:
+                    badge_list = [
+                        f'"{b.strip()}"' for b in badges.split(",") if b.strip()
+                    ]
+                readme_options.append(f"badge_order=[{', '.join(badge_list)}]")
+
+        if readme_options:
+            return f"Readme(; {', '.join(readme_options)})"
+        else:
+            return "Readme()"
+
+    # CI/CD plugins
+    def _build_appveyor_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure AppVeyor CI for Windows testing"""
+        appveyor_options = []
+
+        if plugin_options and "AppVeyor" in plugin_options:
+            options = plugin_options["AppVeyor"]
+            if "config_file" in options:
+                appveyor_options.append(f'config_file="{options["config_file"]}"')
+            if "coverage" in options:
+                appveyor_options.append(f"coverage={str(options['coverage']).lower()}")
+
+        if appveyor_options:
+            return f"AppVeyor(; {', '.join(appveyor_options)})"
+        else:
+            return "AppVeyor()"
+
+    def _build_cirrusci_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Cirrus CI for testing"""
+        cirrus_options = []
+
+        if plugin_options and "CirrusCI" in plugin_options:
+            options = plugin_options["CirrusCI"]
+            if "config_file" in options:
+                cirrus_options.append(f'config_file="{options["config_file"]}"')
+            if "coverage" in options:
+                cirrus_options.append(f"coverage={str(options['coverage']).lower()}")
+            if "image" in options:
+                cirrus_options.append(f'image="{options["image"]}"')
+
+        if cirrus_options:
+            return f"CirrusCI(; {', '.join(cirrus_options)})"
+        else:
+            return "CirrusCI()"
+
+    def _build_droneci_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Drone CI for testing"""
+        drone_options = []
+
+        if plugin_options and "DroneCI" in plugin_options:
+            options = plugin_options["DroneCI"]
+            if "config_file" in options:
+                drone_options.append(f'config_file="{options["config_file"]}"')
+            if "coverage" in options:
+                drone_options.append(f"coverage={str(options['coverage']).lower()}")
+
+        if drone_options:
+            return f"DroneCI(; {', '.join(drone_options)})"
+        else:
+            return "DroneCI()"
+
+    def _build_gitlabci_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure GitLab CI for testing"""
+        gitlab_options = []
+
+        if plugin_options and "GitLabCI" in plugin_options:
+            options = plugin_options["GitLabCI"]
+            if "config_file" in options:
+                gitlab_options.append(f'config_file="{options["config_file"]}"')
+            if "coverage" in options:
+                gitlab_options.append(f"coverage={str(options['coverage']).lower()}")
+
+        if gitlab_options:
+            return f"GitLabCI(; {', '.join(gitlab_options)})"
+        else:
+            return "GitLabCI()"
+
+    def _build_travisci_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Travis CI for testing"""
+        travis_options = []
+
+        if plugin_options and "TravisCI" in plugin_options:
+            options = plugin_options["TravisCI"]
+            if "config_file" in options:
+                travis_options.append(f'config_file="{options["config_file"]}"')
+            if "coverage" in options:
+                travis_options.append(f"coverage={str(options['coverage']).lower()}")
+
+        if travis_options:
+            return f"TravisCI(; {', '.join(travis_options)})"
+        else:
+            return "TravisCI()"
+
+    # Code coverage plugins
+    def _build_coveralls_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Coveralls for code coverage reporting"""
+        coveralls_options = []
+
+        if plugin_options and "Coveralls" in plugin_options:
+            options = plugin_options["Coveralls"]
+            if "config_file" in options:
+                coveralls_options.append(f'config_file="{options["config_file"]}"')
+
+        if coveralls_options:
+            return f"Coveralls(; {', '.join(coveralls_options)})"
+        else:
+            return "Coveralls()"
+
+    # Automation plugins
+
+    def _build_dependabot_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Dependabot for automated dependency updates"""
+        dependabot_options = []
+
+        if plugin_options and "Dependabot" in plugin_options:
+            options = plugin_options["Dependabot"]
+            if "config_file" in options:
+                dependabot_options.append(f'config_file="{options["config_file"]}"')
+
+        if dependabot_options:
+            return f"Dependabot(; {', '.join(dependabot_options)})"
+        else:
+            return "Dependabot()"
+
+    # Badge plugins
+    def _build_bluestylebadge_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure BlueStyleBadge for Julia code style"""
+        return "BlueStyleBadge()"
+
+    def _build_colpracbadge_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure ColPracBadge for community practices"""
+        return "ColPracBadge()"
+
+    def _build_pkgevalbadge_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure PkgEvalBadge for package evaluation"""
+        return "PkgEvalBadge()"
+
+    # Miscellaneous plugins
+    def _build_develop_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Develop plugin for development mode setup"""
+        return "Develop()"
+
+    def _build_citation_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Citation plugin for CITATION.bib generation"""
+        citation_options = []
+
+        if plugin_options and "Citation" in plugin_options:
+            options = plugin_options["Citation"]
+            if "file" in options:
+                citation_options.append(f'file="{options["file"]}"')
+
+        if citation_options:
+            return f"Citation(; {', '.join(citation_options)})"
+        else:
+            return "Citation()"
+
+    def _build_registeraction_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure RegisterAction plugin for automated package registration"""
+        return "RegisterAction()"
+
+    def _build_codeowners_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure CodeOwners plugin for GitHub code ownership"""
+        codeowners_options = []
+
+        if plugin_options and "CodeOwners" in plugin_options:
+            options = plugin_options["CodeOwners"]
+            if "file" in options:
+                codeowners_options.append(f'file="{options["file"]}"')
+
+        if codeowners_options:
+            return f"CodeOwners(; {', '.join(codeowners_options)})"
+        else:
+            return "CodeOwners()"
+
+    def _build_pkgbenchmark_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure PkgBenchmark plugin for performance benchmarking"""
+        return "PkgBenchmark()"
+
+    def _build_runic_plugin(
+        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
+    ) -> str:
+        """Configure Runic plugin for Julia code formatting"""
+        runic_options = []
+
+        if plugin_options and "Runic" in plugin_options:
+            options = plugin_options["Runic"]
+            for key, value in options.items():
+                if isinstance(value, str):
+                    runic_options.append(f'{key}="{value}"')
+                else:
+                    runic_options.append(f"{key}={str(value).lower()}")
+
+        if runic_options:
+            return f"Runic(; {', '.join(runic_options)})"
+        else:
+            return "Runic()"
 
     def _generate_julia_template_code(
         self,

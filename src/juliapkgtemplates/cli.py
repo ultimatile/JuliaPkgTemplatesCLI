@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional
+from typing import Optional, List
 
 import click
 from jinja2 import Environment, PackageLoader
@@ -264,15 +264,40 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
     plugin_options = {}
 
     option_to_plugin = {
+        # Core plugins - match CLI option names (without -- and converted to argument names)
         "git": "Git",
         "tests": "Tests",
         "formatter": "Formatter",
-        "project_file": "ProjectFile",
-        "github_actions": "GitHubActions",
+        "projectfile": "ProjectFile",  # --projectfile becomes projectfile
+        "srcdir": "SrcDir",
+        "readme": "Readme",
+        # CI/CD plugins
+        "githubactions": "GitHubActions",  # --githubactions becomes githubactions
+        "appveyor": "AppVeyor",
+        "cirrusci": "CirrusCI",
+        "droneci": "DroneCI",
+        "gitlabci": "GitLabCI",
+        "travisci": "TravisCI",
+        # Code coverage plugins
         "codecov": "Codecov",
+        "coveralls": "Coveralls",
+        # Documentation plugins
         "documenter": "Documenter",
+        # Automation plugins
         "tagbot": "TagBot",
-        "compat_helper": "CompatHelper",
+        "compathelper": "CompatHelper",  # --compathelper becomes compathelper
+        "dependabot": "Dependabot",
+        # Badge plugins
+        "bluestylebadge": "BlueStyleBadge",
+        "colpracbadge": "ColPracBadge",
+        "pkgevalbadge": "PkgEvalBadge",
+        # Miscellaneous plugins
+        "develop": "Develop",
+        "citation": "Citation",
+        "registeraction": "RegisterAction",
+        "codeowners": "CodeOwners",
+        "pkgbenchmark": "PkgBenchmark",
+        "runic": "Runic",
     }
 
     for option_key, plugin_name in option_to_plugin.items():
@@ -302,15 +327,40 @@ def create_dynamic_plugin_options(cmd):
     """Programmatically register Click options for all known PkgTemplates.jl plugins"""
 
     plugin_option_names = {
+        # Core plugins
         "Git": "--git",
         "Tests": "--tests",
         "Formatter": "--formatter",
-        "ProjectFile": "--project-file",
-        "GitHubActions": "--github-actions",
+        "ProjectFile": "--projectfile",
+        "SrcDir": "--srcdir",
+        "Readme": "--readme",
+        # CI/CD plugins
+        "GitHubActions": "--githubactions",
+        "AppVeyor": "--appveyor",
+        "CirrusCI": "--cirrusci",
+        "DroneCI": "--droneci",
+        "GitLabCI": "--gitlabci",
+        "TravisCI": "--travisci",
+        # Code coverage plugins
         "Codecov": "--codecov",
+        "Coveralls": "--coveralls",
+        # Documentation plugins
         "Documenter": "--documenter",
+        # Automation plugins
         "TagBot": "--tagbot",
-        "CompatHelper": "--compat-helper",
+        "CompatHelper": "--compathelper",
+        "Dependabot": "--dependabot",
+        # Badge plugins
+        "BlueStyleBadge": "--bluestylebadge",
+        "ColPracBadge": "--colpracbadge",
+        "PkgEvalBadge": "--pkgevalbadge",
+        # Miscellaneous plugins
+        "Develop": "--develop",
+        "Citation": "--citation",
+        "RegisterAction": "--registeraction",
+        "CodeOwners": "--codeowners",
+        "PkgBenchmark": "--pkgbenchmark",
+        "Runic": "--runic",
     }
 
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
@@ -552,11 +602,66 @@ def create(
 @click.argument("plugin_name", required=False)
 def plugin_info(plugin_name: Optional[str]):
     """Show information about plugins or a specific plugin"""
+    # Get available plugins dynamically from Julia
+    available_plugins = _get_plugins_from_julia()
+
     if plugin_name is None:
-        click.echo("Available plugins:")
+        click.echo("Available PkgTemplates.jl plugins:")
         click.echo("=" * 40)
-        for p in JuliaPackageGenerator.KNOWN_PLUGINS:
-            click.echo(f"  {p}")
+
+        # Group plugins by category for better readability
+        core_plugins = [
+            "Git",
+            "Tests",
+            "Formatter",
+            "ProjectFile",
+            "SrcDir",
+            "Readme",
+            "License",
+        ]
+        ci_plugins = [
+            "GitHubActions",
+            "AppVeyor",
+            "CirrusCI",
+            "DroneCI",
+            "GitLabCI",
+            "TravisCI",
+        ]
+        coverage_plugins = ["Codecov", "Coveralls"]
+        doc_plugins = ["Documenter"]
+        automation_plugins = ["TagBot", "CompatHelper", "Dependabot", "RegisterAction"]
+        badge_plugins = ["BlueStyleBadge", "ColPracBadge", "PkgEvalBadge"]
+        dev_plugins = ["Citation", "CodeOwners", "PkgBenchmark", "Develop"]
+        formatting_plugins = ["Runic"]
+
+        categories = [
+            ("Core", core_plugins),
+            ("CI/CD", ci_plugins),
+            ("Coverage", coverage_plugins),
+            ("Documentation", doc_plugins),
+            ("Automation", automation_plugins),
+            ("Badges", badge_plugins),
+            ("Development", dev_plugins),
+            ("Formatting", formatting_plugins),
+        ]
+
+        for category, plugin_list in categories:
+            available_in_category = [p for p in plugin_list if p in available_plugins]
+            if available_in_category:
+                click.echo(f"\n{category}:")
+                for p in available_in_category:
+                    click.echo(f"  {p}")
+
+        # Show any remaining plugins not categorized
+        categorized = set()
+        for _, plugin_list in categories:
+            categorized.update(plugin_list)
+        uncategorized = [p for p in available_plugins if p not in categorized]
+        if uncategorized:
+            click.echo("\nOther:")
+            for p in uncategorized:
+                click.echo(f"  {p}")
+
         click.echo(
             "\nUse 'jtc plugin-info <plugin_name>' to see options for a specific plugin."
         )
@@ -565,13 +670,13 @@ def plugin_info(plugin_name: Optional[str]):
 
     # Find matching plugin name (case-insensitive search)
     plugin_name_matched = None
-    for known_plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+    for known_plugin in available_plugins:
         if known_plugin.lower() == plugin_name.lower():
             plugin_name_matched = known_plugin
             break
 
     if plugin_name_matched is None:
-        available = ", ".join(JuliaPackageGenerator.KNOWN_PLUGINS)
+        available = ", ".join(available_plugins)
         click.echo(f"Unknown plugin: {plugin_name}")
         click.echo(f"Available plugins: {available}")
         sys.exit(1)
@@ -624,18 +729,76 @@ def plugin_info(plugin_name: Optional[str]):
 def _get_plugin_cli_option_name(plugin_name: str) -> str:
     """Get CLI option name for a plugin"""
     plugin_option_names = {
+        # Core plugins
         "Git": "--git",
         "Tests": "--tests",
         "Formatter": "--formatter",
-        "ProjectFile": "--project-file",
-        "GitHubActions": "--github-actions",
+        "ProjectFile": "--projectfile",
+        "SrcDir": "--srcdir",
+        "Readme": "--readme",
+        # CI/CD plugins
+        "GitHubActions": "--githubactions",
+        "AppVeyor": "--appveyor",
+        "CirrusCI": "--cirrusci",
+        "DroneCI": "--droneci",
+        "GitLabCI": "--gitlabci",
+        "TravisCI": "--travisci",
+        # Code coverage plugins
         "Codecov": "--codecov",
+        "Coveralls": "--coveralls",
+        # Documentation plugins
         "Documenter": "--documenter",
+        # Automation plugins
         "TagBot": "--tagbot",
-        "CompatHelper": "--compat-helper",
+        "CompatHelper": "--compathelper",
+        "Dependabot": "--dependabot",
+        # Badge plugins
+        "BlueStyleBadge": "--bluestylebadge",
+        "ColPracBadge": "--colpracbadge",
+        "PkgEvalBadge": "--pkgevalbadge",
+        # Miscellaneous plugins
+        "Develop": "--develop",
+        "Citation": "--citation",
+        "RegisterAction": "--registeraction",
+        "CodeOwners": "--codeowners",
+        "PkgBenchmark": "--pkgbenchmark",
+        "Runic": "--runic",
         "License": "--license",
     }
     return plugin_option_names.get(plugin_name, f"--{plugin_name.lower()}")
+
+
+def _get_plugins_from_julia() -> List[str]:
+    """Get available plugins dynamically from Julia's PkgTemplates module"""
+    try:
+        julia_cmd = [
+            "julia",
+            "-e",
+            """
+            using PkgTemplates
+            M = PkgTemplates
+            pairs = [(s, getfield(M, s)) for s in names(M; all=false, imported=true) if isdefined(M, s)]
+            plugin_types = [t for (_, t) in pairs if t isa Type && t <: M.Plugin]
+            plugin_names = [string(nameof(t)) for t in plugin_types]
+            for name in sort(plugin_names)
+                println(name)
+            end
+            """,
+        ]
+
+        result = subprocess.run(julia_cmd, capture_output=True, text=True, check=True)
+        plugins = [
+            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
+        ]
+        return plugins
+
+    except (subprocess.CalledProcessError, FileNotFoundError):
+        # Fallback to hardcoded list if Julia is not available or PkgTemplates not installed
+        click.echo(
+            "Warning: Could not fetch plugins from Julia. Using fallback list.",
+            err=True,
+        )
+        return JuliaPackageGenerator.KNOWN_PLUGINS
 
 
 def _add_jtc_plugin_examples(plugin_name: str):
@@ -690,15 +853,40 @@ def generate_fish_completion() -> str:
     plugin_options = []
 
     plugin_option_names = {
+        # Core plugins
         "Git": "--git",
         "Tests": "--tests",
         "Formatter": "--formatter",
-        "ProjectFile": "--project-file",
-        "GitHubActions": "--github-actions",
+        "ProjectFile": "--projectfile",
+        "SrcDir": "--srcdir",
+        "Readme": "--readme",
+        # CI/CD plugins
+        "GitHubActions": "--githubactions",
+        "AppVeyor": "--appveyor",
+        "CirrusCI": "--cirrusci",
+        "DroneCI": "--droneci",
+        "GitLabCI": "--gitlabci",
+        "TravisCI": "--travisci",
+        # Code coverage plugins
         "Codecov": "--codecov",
+        "Coveralls": "--coveralls",
+        # Documentation plugins
         "Documenter": "--documenter",
+        # Automation plugins
         "TagBot": "--tagbot",
-        "CompatHelper": "--compat-helper",
+        "CompatHelper": "--compathelper",
+        "Dependabot": "--dependabot",
+        # Badge plugins
+        "BlueStyleBadge": "--bluestylebadge",
+        "ColPracBadge": "--colpracbadge",
+        "PkgEvalBadge": "--pkgevalbadge",
+        # Miscellaneous plugins
+        "Develop": "--develop",
+        "Citation": "--citation",
+        "RegisterAction": "--registeraction",
+        "CodeOwners": "--codeowners",
+        "PkgBenchmark": "--pkgbenchmark",
+        "Runic": "--runic",
     }
 
     for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:

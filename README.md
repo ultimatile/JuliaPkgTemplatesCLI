@@ -7,10 +7,8 @@
 
 JuliaPkgTemplatesCLI (`jtc`) is a command-line tool for generating Julia packages using [PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) with integrated [mise](https://github.com/jdx/mise) task management. It streamlines the Julia package creation process by:
 
-- Generating Julia packages using PkgTemplates.jl templates with comprehensive plugin support
-- Integrating with mise tasks for Pkg.jl related commands (e.g., `add`, `rm`, `instantiate`, etc.) to manage dependencies
-- Providing configurable settings with user defaults and plugin-specific options
-- Supporting shell completion (currently fish shell) for improved developer experience
+- **Integrated mise task management**: Automatically generates mise tasks for common Pkg.jl operations (`add`, `rm`, `instantiate`, etc.)
+- **Flexible configuration**: User-configurable defaults with plugin-specific options via CLI or config files
 
 ## Quick start without installation
 
@@ -49,21 +47,6 @@ uv tool install .
 - [PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) installed in Julia. Currently This package is based on PkgTemplates.jl v0.7.56 but doesn’t lock its version, so it may break if users install a newer PkgTemplates.jl release.
 - [mise](https://github.com/jdx/mise) (optional, for mise task integration)
 
-### Runtime Dependencies
-
-- Click (command-line interface)
-- Jinja2 (template rendering)
-
-### Development Dependencies
-
-- uv (package management)
-- pytest (testing)
-- pyright (type checking)
-- ruff (code linting)
-- make (build automation)
-- python-semantic-release (automated versioning)
-- GitHub CLI (`gh`) (optional, for automated release creation)
-
 ## Shell Completion
 
 To enable shell completion for `jtc`, you can use the following command (`.config` directory can be changed based on your environment):
@@ -98,13 +81,7 @@ jtc create MyPackage.jl
 jtc create MyPackage.jl --user "Your Name" --output-dir ~/projects
 
 # Create a package with specific license and plugins
-jtc create MyPackage.jl --license Apache --formatter style=sciml
-
-# Create a package with plugin-specific options
-jtc create MyPackage.jl --git ssh=true
-
-# Create a package with custom mise filename
-jtc create MyPackage.jl --mise-filename-base "mise"
+jtc create MyPackage.jl --license Apache --formatter style=sciml --git ssh=true
 
 # Create a package without mise integration
 jtc create MyPackage.jl --no-mise
@@ -141,7 +118,8 @@ jtc plugin-info Formatter
 
 ## Configuration
 
-jtc supports user-configurable defaults to streamline package creation. Configuration is stored in `~/$XDG_CONFIG_HOME/jtc/config.toml` (default is `~/.config/jtc/config.toml`) following XDG Base Directory standards.
+jtc supports user-configurable defaults to streamline package creation.
+Configuration is stored in `~/$XDG_CONFIG_HOME/jtc/config.toml` (default is `~/.config/jtc/config.toml`) following XDG Base Directory standards.
 
 ### Configuration File Format
 
@@ -175,25 +153,31 @@ For example, if you have `author = "Config Author"` in your config file but run 
 - **author**: Default author name for packages
 - **user**: Git hosting username for repository URLs and CI
 - **mail**: Email address for package metadata
-- **license**: Default license type (supports all PkgTemplates.jl license identifiers plus aliases: `Apache`, `GPL2`, `GPL3`, `LGPL2`, `LGPL3`, `AGPL3`, `EUPL`)
 - **mise-filename-base**: Base name for mise config file (e.g., `.mise` creates `.mise.toml`, `mise` creates `mise.toml`)
 - **with-mise**: Enable/disable mise task file generation (default: enabled)
 
-#### Plugin Options
+#### Plugin Support
 
-[PkgTemplates.jl](https://github.com/JuliaCI/PkgTemplates.jl) plugins below are currently supported with their respective options:
+JuliaPkgTemplatesCLI supports all plugins available in PkgTemplates.jl v0.7.56.
+Plugin's options are passed as is, but License's name option is aliased to `license` in jtc config.
+license: Default license type (supports all PkgTemplates.jl license identifiers plus aliases: `Apache`, `GPL2`, `GPL3`, `LGPL2`, `LGPL3`, `AGPL3`, `EUPL`)
 
-- **CompatHelper**: Automated dependency updates
-- **TagBot**: Automated GitHub releases
-- **Documenter**: Documentation generation and deployment
-- **Codecov**: Code coverage reporting
-- **GitHubActions**: CI/CD workflows
-- **ProjectFile**: Package metadata management
-- **Formatter**: Code formatting with JuliaFormatter
-- **Tests**: Testing framework setup
-- **Git**: Git repository initialization
+#### Plugin Information and Options
 
-Use `jtc plugin-info [plugin_name]` to see available options for each plugin.
+Use the `jtc plugin-info` command to explore available plugins and their configuration options:
+
+```bash
+# List all available plugins with brief descriptions
+jtc plugin-info
+
+# Show detailed information and options for a specific plugin
+jtc plugin-info Formatter
+```
+
+Each plugin supports various configuration options that can be set via:
+
+- Command line: `jtc create MyPkg --formatter style=blue --git ssh=true`
+- Configuration file: Set default options in `~/.config/jtc/config.toml`
 
 ### Configuration Location
 
@@ -210,6 +194,21 @@ git clone https://github.com/ultimatile/JuliaPkgTemplatesCLI.git
 cd JuliaPkgTemplatesCLI
 uv sync
 ```
+
+### Runtime Dependencies
+
+- Click (command-line interface)
+- Jinja2 (template rendering)
+
+### Development Dependencies
+
+- uv (package management)
+- pytest (testing)
+- pyright (type checking)
+- ruff (code linting)
+- make (build automation)
+- python-semantic-release (automated versioning)
+- GitHub CLI (`gh`) (optional, for automated release creation)
 
 ### Development Commands
 
