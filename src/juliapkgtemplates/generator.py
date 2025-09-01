@@ -12,6 +12,35 @@ from typing import Dict, Any, Optional, List
 from jinja2 import Environment, FileSystemLoader
 
 
+class JuliaDependencyError(Exception):
+    """Raised when Julia dependencies are not available or properly configured"""
+
+    pass
+
+
+class JuliaNotFoundError(JuliaDependencyError):
+    """Raised when Julia is not found in PATH"""
+
+    def __init__(self):
+        super().__init__(
+            "Julia not found. Please install Julia and ensure it's in your PATH.\n"
+            "Visit https://julialang.org/downloads/ for installation instructions."
+        )
+
+
+class PkgTemplatesError(JuliaDependencyError):
+    """Raised when PkgTemplates.jl is not available or has issues"""
+
+    def __init__(self, operation: str, stderr: str = ""):
+        error_detail = f": {stderr.strip()}" if stderr.strip() else ""
+        super().__init__(
+            f"Failed to {operation}. This may indicate:\n"
+            f"1. PkgTemplates.jl is not installed: julia -e 'using Pkg; Pkg.add(\"PkgTemplates\")'\n"
+            f"2. PkgTemplates.jl version changed its internal structure\n"
+            f"Error details{error_detail}"
+        )
+
+
 @dataclass(frozen=True)
 class TemplateConfig:
     """Configuration for a package template"""
@@ -44,40 +73,37 @@ class PackageConfig:
         if config_dict is None:
             return cls(plugin_options={})
 
-        # Handle mixed input formats: direct plugin_options dict and dot notation from config files
+        # Support both CLI and config file formats to maintain backward compatibility
         plugin_options = {}
         regular_config = {}
 
         for key, value in config_dict.items():
             if key == "plugin_options" and isinstance(value, dict):
-                # Direct plugin_options dictionary from CLI
                 plugin_options.update(value)
             elif "." in key:
-                # Dot notation plugin option (e.g., from config file)
+                # Config files use dot notation for nested plugin options
                 plugin_name, option_name = key.split(".", 1)
                 if plugin_name not in plugin_options:
                     plugin_options[plugin_name] = {}
                 plugin_options[plugin_name][option_name] = value
             else:
-                # This is a regular config option
                 regular_config[key] = value
 
-        # Ensure type safety by filtering to known dataclass fields
+        # Prevent runtime errors from unknown configuration keys
         valid_keys = {field.name for field in cls.__dataclass_fields__.values()}
         filtered_dict = {k: v for k, v in regular_config.items() if k in valid_keys}
 
-        # Handle enabled_plugins as a list
+        # Config files may store lists as comma-separated strings
         if "enabled_plugins" in filtered_dict and isinstance(
             filtered_dict["enabled_plugins"], str
         ):
-            # Convert comma-separated string to list
             filtered_dict["enabled_plugins"] = [
                 p.strip()
                 for p in filtered_dict["enabled_plugins"].split(",")
                 if p.strip()
             ]
 
-        # Always set plugin_options (empty dict if no plugin options found)
+        # Ensure consistent plugin_options structure across all code paths
         filtered_dict["plugin_options"] = plugin_options if plugin_options else {}
 
         return cls(**filtered_dict)
@@ -86,46 +112,7 @@ class PackageConfig:
 class JuliaPackageGenerator:
     """Julia package generator with PkgTemplates.jl and mise integration"""
 
-    # Known PkgTemplates.jl plugins for CLI option generation
-    KNOWN_PLUGINS = [
-        # Core plugins
-        "Git",
-        "License",
-        "Tests",
-        "Formatter",
-        "ProjectFile",
-        "SrcDir",
-        "Readme",
-        # CI/CD plugins
-        "GitHubActions",
-        "AppVeyor",
-        "CirrusCI",
-        "DroneCI",
-        "GitLabCI",
-        "TravisCI",
-        # Code coverage plugins
-        "Codecov",
-        "Coveralls",
-        # Documentation plugins
-        "Documenter",
-        # Automation plugins
-        "TagBot",
-        "CompatHelper",
-        "Dependabot",
-        # Badge plugins
-        "BlueStyleBadge",
-        "ColPracBadge",
-        "PkgEvalBadge",
-        # Miscellaneous plugins
-        "Develop",
-        "Citation",
-        "RegisterAction",
-        "CodeOwners",
-        "PkgBenchmark",
-        "Runic",
-    ]
-
-    # Map user-friendly license names to PkgTemplates.jl license identifiers
+    # Provide convenient aliases for commonly used licenses while maintaining PkgTemplates.jl compatibility
     LICENSE_MAPPING = {
         "Apache": "ASL",
         "GPL2": "GPL-2.0+",
@@ -139,23 +126,164 @@ class JuliaPackageGenerator:
     def __init__(self):
         self.templates_dir = Path(__file__).parent / "templates"
 
-        # Initialize Jinja2 environment
+        # Preserve template formatting by disabling automatic whitespace trimming
         self.jinja_env = Environment(
             loader=FileSystemLoader(str(self.templates_dir)),
             trim_blocks=False,
             lstrip_blocks=False,
         )
 
+    @staticmethod
+    def get_available_plugins() -> List[str]:
+        """Get available plugins dynamically from Julia's PkgTemplates module"""
+        try:
+            julia_cmd = [
+                "julia",
+                "-e",
+                """
+                using PkgTemplates
+                M = PkgTemplates
+                pairs = [(s, getfield(M, s)) for s in names(M; all=false, imported=true) if isdefined(M, s)]
+                plugin_types = [t for (_, t) in pairs if t isa Type && t <: M.Plugin]
+                plugin_names = [string(nameof(t)) for t in plugin_types]
+                for name in sort(plugin_names)
+                    println(name)
+                end
+                """,
+            ]
+
+            result = subprocess.run(
+                julia_cmd, capture_output=True, text=True, check=True
+            )
+            plugins = [
+                line.strip()
+                for line in result.stdout.strip().split("\n")
+                if line.strip()
+            ]
+            return plugins
+
+        except FileNotFoundError:
+            raise JuliaNotFoundError()
+        except subprocess.CalledProcessError as e:
+            raise PkgTemplatesError("load PkgTemplates.jl", e.stderr)
+
+    @staticmethod
+    def get_supported_licenses() -> List[str]:
+        """Get supported licenses dynamically from PkgTemplates.jl"""
+        try:
+            julia_cmd = [
+                "julia",
+                "-e",
+                """
+                using PkgTemplates
+                license_files = readdir(PkgTemplates.default_file("licenses"))
+                for file in license_files
+                    println(file)
+                end
+                """,
+            ]
+
+            result = subprocess.run(
+                julia_cmd, capture_output=True, text=True, check=True
+            )
+            licenses = [
+                line.strip()
+                for line in result.stdout.strip().split("\n")
+                if line.strip()
+            ]
+            return licenses
+
+        except FileNotFoundError:
+            raise JuliaNotFoundError()
+        except subprocess.CalledProcessError as e:
+            raise PkgTemplatesError(
+                "access PkgTemplates.jl license information", e.stderr
+            )
+
     def _map_license(self, license_name: str) -> str:
         """Convert CLI license names to PkgTemplates.jl format for interoperability"""
         mapped_license = self.LICENSE_MAPPING.get(license_name, license_name)
-        if (
-            mapped_license == license_name
-            and license_name not in self.LICENSE_MAPPING.values()
-        ):
-            # Warn when license identifier may not be recognized by PkgTemplates.jl
-            logging.warning(f"Unknown license '{license_name}', using as-is")
+
+        supported_licenses = self.get_supported_licenses()
+        if mapped_license not in supported_licenses:
+            logging.warning(
+                f"License '{mapped_license}' may not be supported by PkgTemplates.jl. Supported licenses: {', '.join(supported_licenses)}"
+            )
+
         return mapped_license
+
+    def _build_plugin(
+        self,
+        plugin_name: str,
+        plugin_options: Optional[Dict[str, Any]] = None,
+        license_type: Optional[str] = None,
+    ) -> Optional[str]:
+        """Generic plugin builder that handles any plugin with special License processing"""
+        if plugin_name == "License":
+            # License requires special mapping logic for user-friendly aliases
+            license_plugin_options = (
+                {"License": plugin_options} if plugin_options else None
+            )
+            return self._build_license_plugin_special(
+                license_type, license_plugin_options
+            )
+
+        if not plugin_options:
+            return f"{plugin_name}()"
+
+        option_strings = []
+        for key, value in plugin_options.items():
+            if isinstance(value, str):
+                option_strings.append(f'{key}="{value}"')
+            elif isinstance(value, bool):
+                option_strings.append(f"{key}={str(value).lower()}")
+            elif isinstance(value, list):
+                if all(isinstance(item, str) for item in value):
+                    formatted_items = [f'"{item}"' for item in value]
+                    option_strings.append(f"{key}=[{', '.join(formatted_items)}]")
+                else:
+                    option_strings.append(f"{key}={value}")
+            else:
+                option_strings.append(f"{key}={value}")
+
+        if option_strings:
+            return f"{plugin_name}(; {', '.join(option_strings)})"
+        else:
+            return f"{plugin_name}()"
+
+    def _build_license_plugin_special(
+        self,
+        license_type: Optional[str],
+        plugin_options: Optional[Dict[str, Any]] = None,
+    ) -> Optional[str]:
+        """Create License plugin with full support for all License plugin parameters"""
+        license_options = {}
+
+        # Support legacy license_type parameter for backward compatibility
+        if license_type:
+            mapped_license = self._map_license(license_type)
+            license_options["name"] = mapped_license
+
+        # Plugin options take precedence to allow override of legacy parameter
+        if plugin_options and "License" in plugin_options:
+            options = plugin_options["License"]
+            for key, value in options.items():
+                if key == "name":
+                    license_options["name"] = self._map_license(value)
+                else:
+                    license_options[key] = value
+
+        if not license_options:
+            return None
+
+        option_strings = []
+        for key, value in license_options.items():
+            if isinstance(value, str):
+                option_strings.append(f'{key}="{value}"')
+            else:
+                option_strings.append(f"{key}={value}")
+
+        return f"License(; {', '.join(option_strings)})"
 
     def create_package(
         self,
@@ -181,17 +309,14 @@ class JuliaPackageGenerator:
         Returns:
             Path to the created package directory
         """
-        # Handle output directory path resolution
         output_dir = Path(output_dir)
         if not output_dir.is_absolute():
-            # For relative paths, resolve them relative to current working directory
             output_dir = Path.cwd() / output_dir
         output_dir = output_dir.resolve()
 
         if not output_dir.exists():
             output_dir.mkdir(parents=True)
 
-        # Use provided config or create default
         cfg = config if config is not None else PackageConfig()
 
         plugins = self._get_plugins(
@@ -239,14 +364,11 @@ class JuliaPackageGenerator:
         Returns:
             String containing the Julia Template function code
         """
-        # Handle output directory path resolution
         output_dir = Path(output_dir)
         if not output_dir.is_absolute():
-            # For relative paths, resolve them relative to current working directory
             output_dir = Path.cwd() / output_dir
         output_dir = output_dir.resolve()
 
-        # Use provided config or create default
         cfg = config if config is not None else PackageConfig()
 
         plugins = self._get_plugins(
@@ -265,49 +387,10 @@ class JuliaPackageGenerator:
         license_type: Optional[str],
         plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
     ) -> Dict[str, Any]:
-        """Assemble Julia plugin configuration based on explicitly enabled plugins"""
+        """Assemble Julia plugin configuration based on explicitly enabled plugins using generic builder"""
         plugins = []
 
-        # Map each plugin type to its configuration builder function
-        plugin_builders = {
-            # Core plugins
-            "ProjectFile": lambda: self._build_project_file_plugin(plugin_options),
-            "License": lambda: self._build_license_plugin(license_type, plugin_options),
-            "Git": lambda: self._build_git_plugin(plugin_options),
-            "Formatter": lambda: self._build_formatter_plugin(plugin_options),
-            "Tests": lambda: self._build_tests_plugin(plugin_options),
-            "SrcDir": lambda: self._build_srcdir_plugin(plugin_options),
-            "Readme": lambda: self._build_readme_plugin(plugin_options),
-            # CI/CD plugins
-            "GitHubActions": lambda: self._build_github_actions_plugin(plugin_options),
-            "AppVeyor": lambda: self._build_appveyor_plugin(plugin_options),
-            "CirrusCI": lambda: self._build_cirrusci_plugin(plugin_options),
-            "DroneCI": lambda: self._build_droneci_plugin(plugin_options),
-            "GitLabCI": lambda: self._build_gitlabci_plugin(plugin_options),
-            "TravisCI": lambda: self._build_travisci_plugin(plugin_options),
-            # Code coverage plugins
-            "Codecov": lambda: self._build_codecov_plugin(plugin_options),
-            "Coveralls": lambda: self._build_coveralls_plugin(plugin_options),
-            # Documentation plugins
-            "Documenter": lambda: self._build_documenter_plugin(plugin_options),
-            # Automation plugins
-            "TagBot": lambda: self._build_tagbot_plugin(plugin_options),
-            "CompatHelper": lambda: self._build_compathelper_plugin(plugin_options),
-            "Dependabot": lambda: self._build_dependabot_plugin(plugin_options),
-            # Badge plugins
-            "BlueStyleBadge": lambda: self._build_bluestylebadge_plugin(plugin_options),
-            "ColPracBadge": lambda: self._build_colpracbadge_plugin(plugin_options),
-            "PkgEvalBadge": lambda: self._build_pkgevalbadge_plugin(plugin_options),
-            # Miscellaneous plugins
-            "Develop": lambda: self._build_develop_plugin(plugin_options),
-            "Citation": lambda: self._build_citation_plugin(plugin_options),
-            "RegisterAction": lambda: self._build_registeraction_plugin(plugin_options),
-            "CodeOwners": lambda: self._build_codeowners_plugin(plugin_options),
-            "PkgBenchmark": lambda: self._build_pkgbenchmark_plugin(plugin_options),
-            "Runic": lambda: self._build_runic_plugin(plugin_options),
-        }
-
-        # Auto-enable License plugin when license_type is specified or License plugin options exist
+        # License plugin is implicitly enabled when license options are provided
         plugins_to_process = list(enabled_plugins or [])
         has_license_options = plugin_options and "License" in plugin_options
         if (
@@ -316,412 +399,14 @@ class JuliaPackageGenerator:
             plugins_to_process.append("License")
 
         for plugin_name in plugins_to_process:
-            if plugin_name in plugin_builders:
-                plugin = plugin_builders[plugin_name]()
-                if plugin:  # Exclude disabled or invalid plugins
-                    plugins.append(plugin)
+            options = plugin_options.get(plugin_name, {}) if plugin_options else {}
+            plugin = self._build_plugin(plugin_name, options, license_type)
+            if plugin:
+                plugins.append(plugin)
 
         return {
             "plugins": plugins,
         }
-
-    def _build_project_file_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Generate ProjectFile plugin with semantic versioning constraints"""
-        version = "0.0.1"  # Default follows semantic versioning convention
-
-        # Get version from plugin options
-        if plugin_options and "ProjectFile" in plugin_options:
-            options = plugin_options["ProjectFile"]
-            if "version" in options:
-                version = options["version"]
-
-        return f'ProjectFile(; version=v"{version}")'
-
-    def _build_license_plugin(
-        self,
-        license_type: Optional[str],
-        plugin_options: Optional[Dict[str, Dict[str, Any]]] = None,
-    ) -> Optional[str]:
-        """Create License plugin with full support for all License plugin parameters"""
-        license_options = {}
-
-        # Handle legacy license_type parameter
-        if license_type:
-            mapped_license = self._map_license(license_type)
-            license_options["name"] = mapped_license
-
-        # Apply plugin options (takes precedence over legacy license_type)
-        if plugin_options and "License" in plugin_options:
-            options = plugin_options["License"]
-            for key, value in options.items():
-                if key == "name":
-                    # Apply license mapping to name parameter
-                    license_options["name"] = self._map_license(value)
-                else:
-                    # Pass other parameters through unchanged
-                    license_options[key] = value
-
-        # Return None if no license specified
-        if not license_options:
-            return None
-
-        # Build License plugin with all specified options
-        option_strings = []
-        for key, value in license_options.items():
-            if isinstance(value, str):
-                option_strings.append(f'{key}="{value}"')
-            else:
-                option_strings.append(f"{key}={value}")
-
-        return f"License(; {', '.join(option_strings)})"
-
-    def _build_git_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Git plugin - uses PkgTemplates.jl defaults unless explicitly overridden"""
-        git_options = []
-
-        # Only apply user-specified options
-        if plugin_options and "Git" in plugin_options:
-            options = plugin_options["Git"]
-            if "manifest" in options:
-                git_options.append(f"manifest={str(options['manifest']).lower()}")
-            if "ssh" in options:
-                git_options.append(f"ssh={str(options['ssh']).lower()}")
-            if "ignore" in options:
-                ignore_patterns = options["ignore"]
-                # Support both list and comma-separated string formats from config
-                if isinstance(ignore_patterns, list):
-                    patterns = [f'"{p}"' for p in ignore_patterns]
-                else:
-                    patterns = [
-                        f'"{p.strip()}"'
-                        for p in ignore_patterns.split(",")
-                        if p.strip()
-                    ]
-                git_options.append(f"ignore=[{', '.join(patterns)}]")
-
-        if git_options:
-            return f"Git(; {', '.join(git_options)})"
-        else:
-            return "Git()"
-
-    def _build_formatter_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Build Formatter plugin configuration - uses PkgTemplates.jl defaults unless explicitly overridden"""
-        formatter_options = []
-
-        # Only apply user-specified options
-        if plugin_options and "Formatter" in plugin_options:
-            options = plugin_options["Formatter"]
-            if "style" in options:
-                formatter_options.append(f'style="{options["style"]}"')
-
-        if formatter_options:
-            return f"Formatter(; {', '.join(formatter_options)})"
-        else:
-            return "Formatter()"
-
-    def _build_tests_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure testing framework - uses PkgTemplates.jl defaults unless explicitly overridden"""
-        test_options = []
-
-        # Only apply user-specified options
-        if plugin_options and "Tests" in plugin_options:
-            options = plugin_options["Tests"]
-            if "aqua" in options:
-                test_options.append(f"aqua={str(options['aqua']).lower()}")
-            if "jet" in options:
-                test_options.append(f"jet={str(options['jet']).lower()}")
-            if "project" in options:
-                test_options.append(f"project={str(options['project']).lower()}")
-
-        if test_options:
-            return f"Tests(; {', '.join(test_options)})"
-        else:
-            return "Tests()"
-
-    def _build_github_actions_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Enable GitHub Actions CI/CD integration for automated testing and deployment"""
-        return "GitHubActions()"
-
-    def _build_codecov_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Enable Codecov integration for test coverage reporting"""
-        return "Codecov()"
-
-    def _build_documenter_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Documenter.jl with GitHub Actions for automated documentation builds"""
-        return "Documenter{GitHubActions}()"
-
-    def _build_tagbot_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Build TagBot plugin configuration"""
-        return "TagBot()"
-
-    def _build_compathelper_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Build CompatHelper plugin configuration"""
-        return "CompatHelper()"
-
-    # Core documentation plugins
-    def _build_srcdir_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure SrcDir plugin - creates src directory structure"""
-        return "SrcDir()"
-
-    def _build_readme_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Readme plugin - generates README.md file"""
-        readme_options = []
-
-        if plugin_options and "Readme" in plugin_options:
-            options = plugin_options["Readme"]
-            if "badge_order" in options:
-                badges = options["badge_order"]
-                if isinstance(badges, list):
-                    badge_list = [f'"{b}"' for b in badges]
-                else:
-                    badge_list = [
-                        f'"{b.strip()}"' for b in badges.split(",") if b.strip()
-                    ]
-                readme_options.append(f"badge_order=[{', '.join(badge_list)}]")
-
-        if readme_options:
-            return f"Readme(; {', '.join(readme_options)})"
-        else:
-            return "Readme()"
-
-    # CI/CD plugins
-    def _build_appveyor_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure AppVeyor CI for Windows testing"""
-        appveyor_options = []
-
-        if plugin_options and "AppVeyor" in plugin_options:
-            options = plugin_options["AppVeyor"]
-            if "config_file" in options:
-                appveyor_options.append(f'config_file="{options["config_file"]}"')
-            if "coverage" in options:
-                appveyor_options.append(f"coverage={str(options['coverage']).lower()}")
-
-        if appveyor_options:
-            return f"AppVeyor(; {', '.join(appveyor_options)})"
-        else:
-            return "AppVeyor()"
-
-    def _build_cirrusci_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Cirrus CI for testing"""
-        cirrus_options = []
-
-        if plugin_options and "CirrusCI" in plugin_options:
-            options = plugin_options["CirrusCI"]
-            if "config_file" in options:
-                cirrus_options.append(f'config_file="{options["config_file"]}"')
-            if "coverage" in options:
-                cirrus_options.append(f"coverage={str(options['coverage']).lower()}")
-            if "image" in options:
-                cirrus_options.append(f'image="{options["image"]}"')
-
-        if cirrus_options:
-            return f"CirrusCI(; {', '.join(cirrus_options)})"
-        else:
-            return "CirrusCI()"
-
-    def _build_droneci_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Drone CI for testing"""
-        drone_options = []
-
-        if plugin_options and "DroneCI" in plugin_options:
-            options = plugin_options["DroneCI"]
-            if "config_file" in options:
-                drone_options.append(f'config_file="{options["config_file"]}"')
-            if "coverage" in options:
-                drone_options.append(f"coverage={str(options['coverage']).lower()}")
-
-        if drone_options:
-            return f"DroneCI(; {', '.join(drone_options)})"
-        else:
-            return "DroneCI()"
-
-    def _build_gitlabci_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure GitLab CI for testing"""
-        gitlab_options = []
-
-        if plugin_options and "GitLabCI" in plugin_options:
-            options = plugin_options["GitLabCI"]
-            if "config_file" in options:
-                gitlab_options.append(f'config_file="{options["config_file"]}"')
-            if "coverage" in options:
-                gitlab_options.append(f"coverage={str(options['coverage']).lower()}")
-
-        if gitlab_options:
-            return f"GitLabCI(; {', '.join(gitlab_options)})"
-        else:
-            return "GitLabCI()"
-
-    def _build_travisci_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Travis CI for testing"""
-        travis_options = []
-
-        if plugin_options and "TravisCI" in plugin_options:
-            options = plugin_options["TravisCI"]
-            if "config_file" in options:
-                travis_options.append(f'config_file="{options["config_file"]}"')
-            if "coverage" in options:
-                travis_options.append(f"coverage={str(options['coverage']).lower()}")
-
-        if travis_options:
-            return f"TravisCI(; {', '.join(travis_options)})"
-        else:
-            return "TravisCI()"
-
-    # Code coverage plugins
-    def _build_coveralls_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Coveralls for code coverage reporting"""
-        coveralls_options = []
-
-        if plugin_options and "Coveralls" in plugin_options:
-            options = plugin_options["Coveralls"]
-            if "config_file" in options:
-                coveralls_options.append(f'config_file="{options["config_file"]}"')
-
-        if coveralls_options:
-            return f"Coveralls(; {', '.join(coveralls_options)})"
-        else:
-            return "Coveralls()"
-
-    # Automation plugins
-
-    def _build_dependabot_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Dependabot for automated dependency updates"""
-        dependabot_options = []
-
-        if plugin_options and "Dependabot" in plugin_options:
-            options = plugin_options["Dependabot"]
-            if "config_file" in options:
-                dependabot_options.append(f'config_file="{options["config_file"]}"')
-
-        if dependabot_options:
-            return f"Dependabot(; {', '.join(dependabot_options)})"
-        else:
-            return "Dependabot()"
-
-    # Badge plugins
-    def _build_bluestylebadge_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure BlueStyleBadge for Julia code style"""
-        return "BlueStyleBadge()"
-
-    def _build_colpracbadge_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure ColPracBadge for community practices"""
-        return "ColPracBadge()"
-
-    def _build_pkgevalbadge_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure PkgEvalBadge for package evaluation"""
-        return "PkgEvalBadge()"
-
-    # Miscellaneous plugins
-    def _build_develop_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Develop plugin for development mode setup"""
-        return "Develop()"
-
-    def _build_citation_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Citation plugin for CITATION.bib generation"""
-        citation_options = []
-
-        if plugin_options and "Citation" in plugin_options:
-            options = plugin_options["Citation"]
-            if "file" in options:
-                citation_options.append(f'file="{options["file"]}"')
-
-        if citation_options:
-            return f"Citation(; {', '.join(citation_options)})"
-        else:
-            return "Citation()"
-
-    def _build_registeraction_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure RegisterAction plugin for automated package registration"""
-        return "RegisterAction()"
-
-    def _build_codeowners_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure CodeOwners plugin for GitHub code ownership"""
-        codeowners_options = []
-
-        if plugin_options and "CodeOwners" in plugin_options:
-            options = plugin_options["CodeOwners"]
-            if "file" in options:
-                codeowners_options.append(f'file="{options["file"]}"')
-
-        if codeowners_options:
-            return f"CodeOwners(; {', '.join(codeowners_options)})"
-        else:
-            return "CodeOwners()"
-
-    def _build_pkgbenchmark_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure PkgBenchmark plugin for performance benchmarking"""
-        return "PkgBenchmark()"
-
-    def _build_runic_plugin(
-        self, plugin_options: Optional[Dict[str, Dict[str, Any]]] = None
-    ) -> str:
-        """Configure Runic plugin for Julia code formatting"""
-        runic_options = []
-
-        if plugin_options and "Runic" in plugin_options:
-            options = plugin_options["Runic"]
-            for key, value in options.items():
-                if isinstance(value, str):
-                    runic_options.append(f'{key}="{value}"')
-                else:
-                    runic_options.append(f"{key}={str(value).lower()}")
-
-        if runic_options:
-            return f"Runic(; {', '.join(runic_options)})"
-        else:
-            return "Runic()"
 
     def _generate_julia_template_code(
         self,

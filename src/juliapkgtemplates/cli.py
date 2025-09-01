@@ -11,7 +11,16 @@ from typing import Optional, List
 import click
 from jinja2 import Environment, PackageLoader
 
-from .generator import JuliaPackageGenerator, PackageConfig
+from .generator import JuliaPackageGenerator, PackageConfig, JuliaDependencyError
+
+
+def check_julia_dependencies():
+    """Check Julia dependencies early and exit if not available"""
+    try:
+        JuliaPackageGenerator.get_available_plugins()
+    except JuliaDependencyError as e:
+        click.echo(f"Error: {e}", err=True)
+        sys.exit(1)
 
 
 def get_config_path() -> Path:
@@ -56,11 +65,9 @@ def flatten_config_for_backward_compatibility(config: dict) -> dict:
 
     for key, value in defaults.items():
         if isinstance(value, dict):
-            # This is a plugin section, flatten it
             for plugin_key, plugin_value in value.items():
                 flattened_defaults[f"{key}.{plugin_key}"] = plugin_value
         else:
-            # This is a basic config value
             flattened_defaults[key] = value
 
     return {"default": flattened_defaults}
@@ -75,11 +82,10 @@ def save_config(config: dict) -> None:
         with open(config_path, "wb") as f:
             tomli_w.dump(config, f)
     except ImportError:
-        # Fallback to manual TOML writing if tomli_w is not available
+        # Manual TOML generation when tomli_w is unavailable
         content = ""
         defaults = config.get("default", {})
 
-        # Write basic config values first
         basic_values = {}
         plugin_values = {}
 
@@ -104,7 +110,6 @@ def save_config(config: dict) -> None:
                 elif isinstance(value, list):
                     content += f"{key} = {value}\n"
 
-            # Write plugin sections
             for plugin_name, options in plugin_values.items():
                 content += f"\n[default.{plugin_name}]\n"
                 for option_key, option_value in options.items():
@@ -186,7 +191,6 @@ def parse_plugin_option_value(value_str: str):
     elif value_str.lower() in ("false", "no", "0"):
         return False
     elif value_str.startswith("[") and value_str.endswith("]"):
-        # Simple list parsing: [item1,item2,item3]
         content = value_str[1:-1].strip()
         if not content:
             return []
@@ -210,7 +214,7 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
     if not option_string:
         return options
 
-    # Preserve quoted strings containing spaces during tokenization
+    # Parse quoted strings to preserve spaces in option values
     parts = []
     current_part = ""
     in_quotes = False
@@ -235,7 +239,6 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
     if current_part.strip():
         parts.append(current_part.strip())
 
-    # Convert string tokens to typed values
     for part in parts:
         if "=" in part:
             key, value = part.split("=", 1)
@@ -252,10 +255,8 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
 def handle_license_option(license_value: str) -> dict:
     """Parse license option supporting both simple and key=value formats"""
     if "=" in license_value:
-        # Formal format: key=value pairs
         return parse_multiple_key_value_pairs(license_value)
     else:
-        # Simple format: direct license name
         return {"name": license_value}
 
 
@@ -264,34 +265,27 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
     plugin_options = {}
 
     option_to_plugin = {
-        # Core plugins - match CLI option names (without -- and converted to argument names)
         "git": "Git",
         "tests": "Tests",
         "formatter": "Formatter",
-        "projectfile": "ProjectFile",  # --projectfile becomes projectfile
+        "projectfile": "ProjectFile",
         "srcdir": "SrcDir",
         "readme": "Readme",
-        # CI/CD plugins
-        "githubactions": "GitHubActions",  # --githubactions becomes githubactions
+        "githubactions": "GitHubActions",
         "appveyor": "AppVeyor",
         "cirrusci": "CirrusCI",
         "droneci": "DroneCI",
         "gitlabci": "GitLabCI",
         "travisci": "TravisCI",
-        # Code coverage plugins
         "codecov": "Codecov",
         "coveralls": "Coveralls",
-        # Documentation plugins
         "documenter": "Documenter",
-        # Automation plugins
         "tagbot": "TagBot",
-        "compathelper": "CompatHelper",  # --compathelper becomes compathelper
+        "compathelper": "CompatHelper",
         "dependabot": "Dependabot",
-        # Badge plugins
         "bluestylebadge": "BlueStyleBadge",
         "colpracbadge": "ColPracBadge",
         "pkgevalbadge": "PkgEvalBadge",
-        # Miscellaneous plugins
         "develop": "Develop",
         "citation": "Citation",
         "registeraction": "RegisterAction",
@@ -304,20 +298,18 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
         if option_key in kwargs and kwargs[option_key] is not None:
             option_string = kwargs[option_key]
 
-            # Plugin is enabled if option is specified (even if empty string)
             if plugin_name not in plugin_options:
                 plugin_options[plugin_name] = {}
 
-            if option_string:  # Non-empty string: parse options
+            if option_string:
                 options = parse_multiple_key_value_pairs(option_string)
                 if options:
                     plugin_options[plugin_name].update(options)
-            # Empty string: enable with defaults (no additional options)
 
-    # Handle license option specially to support both formats
+    # License uses different CLI option format than other plugins
     if "license" in kwargs and kwargs["license"] is not None:
         license_value = kwargs["license"]
-        if license_value:  # Non-empty license value
+        if license_value:
             plugin_options["License"] = handle_license_option(license_value)
 
     return plugin_options
@@ -363,7 +355,9 @@ def create_dynamic_plugin_options(cmd):
         "Runic": "--runic",
     }
 
-    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+    available_plugins = JuliaPackageGenerator.get_available_plugins()
+
+    for plugin in available_plugins:
         if plugin == "License":
             continue
 
@@ -387,7 +381,7 @@ def create_dynamic_plugin_options(cmd):
 @click.version_option(package_name="JuliaPkgTemplatesCLI")
 def main():
     """jtc - Julia package generator with PkgTemplates.jl and mise tasks integration"""
-    pass
+    check_julia_dependencies()
 
 
 @main.command()
@@ -770,35 +764,7 @@ def _get_plugin_cli_option_name(plugin_name: str) -> str:
 
 def _get_plugins_from_julia() -> List[str]:
     """Get available plugins dynamically from Julia's PkgTemplates module"""
-    try:
-        julia_cmd = [
-            "julia",
-            "-e",
-            """
-            using PkgTemplates
-            M = PkgTemplates
-            pairs = [(s, getfield(M, s)) for s in names(M; all=false, imported=true) if isdefined(M, s)]
-            plugin_types = [t for (_, t) in pairs if t isa Type && t <: M.Plugin]
-            plugin_names = [string(nameof(t)) for t in plugin_types]
-            for name in sort(plugin_names)
-                println(name)
-            end
-            """,
-        ]
-
-        result = subprocess.run(julia_cmd, capture_output=True, text=True, check=True)
-        plugins = [
-            line.strip() for line in result.stdout.strip().split("\n") if line.strip()
-        ]
-        return plugins
-
-    except (subprocess.CalledProcessError, FileNotFoundError):
-        # Fallback to hardcoded list if Julia is not available or PkgTemplates not installed
-        click.echo(
-            "Warning: Could not fetch plugins from Julia. Using fallback list.",
-            err=True,
-        )
-        return JuliaPackageGenerator.KNOWN_PLUGINS
+    return JuliaPackageGenerator.get_available_plugins()
 
 
 def _add_jtc_plugin_examples(plugin_name: str):
@@ -846,7 +812,8 @@ def completion(shell: str):
 def generate_fish_completion() -> str:
     """Generate fish completion script for jtc command using Jinja2 template"""
     # Get available plugins and licenses dynamically
-    plugins = " ".join(JuliaPackageGenerator.KNOWN_PLUGINS)
+    plugins = " ".join(JuliaPackageGenerator.get_available_plugins())
+
     licenses = " ".join(JuliaPackageGenerator.LICENSE_MAPPING.keys())
 
     # Generate plugin options dynamically based on current CLI structure
@@ -889,7 +856,9 @@ def generate_fish_completion() -> str:
         "Runic": "--runic",
     }
 
-    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+    available_plugins = JuliaPackageGenerator.get_available_plugins()
+
+    for plugin in available_plugins:
         if plugin == "License":
             continue  # License is handled separately
 
@@ -902,7 +871,7 @@ def generate_fish_completion() -> str:
 
     # Generate config command plugin options
     config_plugin_options = []
-    for plugin in JuliaPackageGenerator.KNOWN_PLUGINS:
+    for plugin in available_plugins:
         if plugin == "License":
             continue  # License is handled separately
 
