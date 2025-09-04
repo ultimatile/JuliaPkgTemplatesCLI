@@ -504,14 +504,42 @@ def create(
 
     # Display configuration being used
 
+    # Auto-detect plugins from config file
+    config_detected_plugins = set()
+
+    # Check for direct plugin sections in config (e.g., [default.Formatter])
+    for key in defaults.keys():
+        if "." in key:
+            plugin_name, _ = key.split(".", 1)
+            config_detected_plugins.add(plugin_name)
+        else:
+            # Check if key matches a known plugin name (like Formatter, Git, etc.)
+            known_plugins = {
+                "Formatter",
+                "Git",
+                "Tests",
+                "ProjectFile",
+                "Documenter",
+                "TagBot",
+                "CompatHelper",
+                "Codecov",
+                "GitHubActions",
+                "License",
+            }
+            if key in known_plugins:
+                config_detected_plugins.add(key)
+
+    # Merge CLI-enabled plugins with config-detected plugins
+    all_enabled_plugins = set(enabled_plugins) | config_detected_plugins
+
     # Build final configuration with proper precedence
     final_config = {}
-    final_config["enabled_plugins"] = enabled_plugins
+    final_config["enabled_plugins"] = list(all_enabled_plugins)
     final_config["julia_version"] = julia_version or defaults.get("julia_version")
     final_config["mise_filename_base"] = final_mise_filename_base
     final_config["with_mise"] = final_with_mise
 
-    # Only apply plugin options for explicitly enabled plugins
+    # Only apply plugin options for explicitly enabled or config-detected plugins
     final_plugin_options = {}
 
     # Apply CLI plugin options (these are the enabled plugins)
@@ -524,8 +552,8 @@ def create(
         # Add config license as License plugin option if no CLI license specified
         final_plugin_options["License"] = {"name": config_license}
 
-    # Then, apply config file options only for CLI-enabled plugins
-    if enabled_plugins:  # Only if there are CLI-enabled plugins
+    # Then, apply config file options for all enabled plugins (CLI + config-detected)
+    if all_enabled_plugins:  # Only if there are enabled plugins
         config_plugin_options = defaults.copy()
         # Remove non-plugin configuration
         for key in [
@@ -545,12 +573,36 @@ def create(
         for key, value in config_plugin_options.items():
             if "." in key:
                 plugin_name, option_name = key.split(".", 1)
-                if plugin_name in enabled_plugins:
+                if plugin_name in all_enabled_plugins:
                     if plugin_name not in final_plugin_options:
                         final_plugin_options[plugin_name] = {}
                     # CLI options take precedence over config file
                     if option_name not in final_plugin_options[plugin_name]:
                         final_plugin_options[plugin_name][option_name] = value
+            else:
+                # Handle direct plugin sections (e.g., Formatter = {...})
+                known_plugins = {
+                    "Formatter",
+                    "Git",
+                    "Tests",
+                    "ProjectFile",
+                    "Documenter",
+                    "TagBot",
+                    "CompatHelper",
+                    "Codecov",
+                    "GitHubActions",
+                }
+                if key in known_plugins and key in all_enabled_plugins:
+                    if key not in final_plugin_options:
+                        final_plugin_options[key] = {}
+                    # If the value is a dict, merge it; otherwise treat as single option
+                    if isinstance(value, dict):
+                        for option_name, option_value in value.items():
+                            if option_name not in final_plugin_options[key]:
+                                final_plugin_options[key][option_name] = option_value
+                    else:
+                        # This shouldn't happen in normal config, but handle gracefully
+                        pass
 
     final_config["plugin_options"] = final_plugin_options
 
