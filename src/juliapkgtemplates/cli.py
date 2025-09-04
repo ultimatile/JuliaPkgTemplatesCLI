@@ -1081,7 +1081,7 @@ def show():
     _show_config()
 
 
-@config.command()
+@config.command("set")
 @click.option("--author", help="Set default author")
 @click.option("--user", help="Set default user")
 @click.option("--mail", help="Set default mail")
@@ -1095,7 +1095,7 @@ def show():
     "--with-mise/--no-mise", default=None, help="Set default mise task file generation"
 )
 @create_dynamic_plugin_options
-def set(
+def set_config(
     author: Optional[str],
     user: Optional[str],
     mail: Optional[str],
