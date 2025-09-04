@@ -287,6 +287,147 @@ class TestCreateCommand:
                 assert "License" in config.plugin_options
                 assert config.plugin_options["License"]["name"] == "Apache"
 
+    def test_create_with_config_plugin_options_no_cli_args(self, cli_runner, temp_dir):
+        """Test create command applies plugin options from config when no CLI plugin args provided"""
+        mock_config = {
+            "default": {
+                "author": "Config Author",
+                # Plugin options in nested format (like real config files)
+                "formatter": {"indent": 4, "margin": 120},
+                "git": {"ssh": True, "manifest": False},
+                "documenter": {
+                    "logo": "path/to/logo.png",
+                    "canonical_url": "https://example.com",
+                },
+            }
+        }
+
+        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+                mock_generator.return_value = mock_instance
+
+                # Call create WITHOUT any plugin CLI args - should use config values
+                result = cli_runner.invoke(
+                    create,
+                    ["TestPackage", "--output-dir", str(temp_dir)],
+                )
+
+                assert result.exit_code == 0
+                mock_instance.create_package.assert_called_once()
+
+                # Verify that config plugin options were applied
+                call_args = mock_instance.create_package.call_args
+                config = call_args[0][5]  # PackageConfig is position 5
+
+                # Check that plugin options from config were loaded
+                assert "formatter" in config.plugin_options
+                assert config.plugin_options["formatter"]["indent"] == 4
+                assert config.plugin_options["formatter"]["margin"] == 120
+
+                assert "git" in config.plugin_options
+                assert config.plugin_options["git"]["ssh"]
+                assert not config.plugin_options["git"]["manifest"]
+
+                assert "documenter" in config.plugin_options
+                assert config.plugin_options["documenter"]["logo"] == "path/to/logo.png"
+                assert (
+                    config.plugin_options["documenter"]["canonical_url"]
+                    == "https://example.com"
+                )
+
+    def test_create_dry_run_with_config_defaults(self, cli_runner, temp_dir):
+        """Test dry-run command applies config defaults properly"""
+        mock_config = {
+            "default": {
+                "author": "Config Author",
+                "user": "configuser",
+                "mail": "config@example.com",
+                "license": "Apache",
+                "julia_version": "1.10.9",
+                # Plugin options in nested format
+                "formatter": {"indent": 4, "margin": 120},
+            }
+        }
+
+        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.generate_julia_code.return_value = (
+                    "# Mock Julia code with config values"
+                )
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    ["TestPackage", "--dry-run", "--output-dir", str(temp_dir)],
+                )
+
+                assert result.exit_code == 0
+                assert "# Mock Julia code with config values" in result.output
+
+                # Verify that generate_julia_code was called with config values
+                mock_instance.generate_julia_code.assert_called_once()
+                call_args = mock_instance.generate_julia_code.call_args
+
+                # Check that config values were used
+                assert call_args[0][1] == "Config Author"  # author
+                assert call_args[0][2] == "configuser"  # user
+                assert call_args[0][3] == "config@example.com"  # mail
+                # output_dir is position 4, PackageConfig is position 5
+
+                # Check PackageConfig contains config values
+                config = call_args[0][5]  # PackageConfig is position 5
+                assert config.julia_version == "1.10.9"  # julia_version in config
+                assert "License" in config.plugin_options
+                assert config.plugin_options["License"]["name"] == "Apache"
+                assert "formatter" in config.plugin_options
+                assert config.plugin_options["formatter"]["indent"] == 4
+                assert config.plugin_options["formatter"]["margin"] == 120
+
+    def test_create_dry_run_cli_overrides_config_defaults(self, cli_runner, temp_dir):
+        """Test dry-run command CLI options override config defaults"""
+        mock_config = {
+            "default": {
+                "author": "Config Author",
+                "license": "GPL3",
+            }
+        }
+
+        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
+            with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+                mock_instance = Mock()
+                mock_instance.generate_julia_code.return_value = (
+                    "# Mock Julia code with CLI overrides"
+                )
+                mock_generator.return_value = mock_instance
+
+                result = cli_runner.invoke(
+                    create,
+                    [
+                        "TestPackage",
+                        "--dry-run",
+                        "--author",
+                        "CLI Author",
+                        "--license",
+                        "MIT",
+                        "--output-dir",
+                        str(temp_dir),
+                    ],
+                )
+
+                assert result.exit_code == 0
+
+                # Verify that CLI values override config values
+                call_args = mock_instance.generate_julia_code.call_args
+                assert call_args[0][1] == "CLI Author"  # author overridden
+
+                config = call_args[0][5]
+                assert (
+                    config.plugin_options["License"]["name"] == "MIT"
+                )  # license overridden
+
     def test_create_with_cli_license_ptj_native(self, cli_runner, temp_dir):
         """Test create command with PkgTemplates.jl native license identifier"""
         with patch("juliapkgtemplates.cli.load_config", return_value={}):
