@@ -12,6 +12,7 @@ from juliapkgtemplates.cli import (
     save_config,
     create,
     config as config_cmd,
+    set_config_path,
 )
 
 
@@ -90,6 +91,49 @@ class TestConfigFunctions:
         content = config_file.read_text()
         assert 'author = "Test Author"' in content
         assert 'license = "MIT"' in content
+
+    def test_set_config_path(self, temp_config_dir):
+        """Test setting custom config path"""
+        custom_config_file = temp_config_dir / "custom.toml"
+
+        # Set custom path
+        set_config_path(str(custom_config_file))
+
+        # Verify custom path is returned when requesting config location
+        config_path = get_config_path()
+        assert config_path.resolve() == custom_config_file.resolve()
+
+    def test_set_config_path_none(self, temp_config_dir):
+        """Test resetting config path to default"""
+        custom_config_file = temp_config_dir / "custom.toml"
+
+        # Set custom path first
+        set_config_path(str(custom_config_file))
+
+        # Reset to default
+        set_config_path(None)
+
+        # Confirm fallback to standard XDG location when custom path is cleared
+        with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(temp_config_dir)}):
+            config_path = get_config_path()
+            assert config_path == temp_config_dir / "jtc" / "config.toml"
+
+    def test_save_config_with_custom_path(self, temp_config_dir):
+        """Test saving config to custom path creates parent directories"""
+        custom_dir = temp_config_dir / "custom" / "subdir"
+        custom_config_file = custom_dir / "my-config.toml"
+        test_config = {"default": {"author": "Test Author"}}
+
+        # Set custom path
+        set_config_path(str(custom_config_file))
+
+        # Exercise directory creation logic when saving to non-existent path
+        save_config(test_config)
+
+        # Confirm config file exists at expected location with correct content
+        assert custom_config_file.exists()
+        content = custom_config_file.read_text()
+        assert 'author = "Test Author"' in content
 
 
 class TestCreateCommand:
@@ -661,6 +705,40 @@ class TestCreateCommand:
                 config = call_args[0][5]  # PackageConfig (position 5)
                 assert config.with_mise is True
 
+    def test_create_with_custom_config_path(self, cli_runner, temp_dir):
+        """Test create command with custom config path"""
+        custom_config_file = temp_dir / "custom-config.toml"
+        custom_config_file.write_text(
+            '[default]\nauthor = "Custom Author"\nuser = "custom-user"\n'
+        )
+
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_generator:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_generator.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--config-path",
+                    str(custom_config_file),
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+            assert result.exit_code == 0
+            assert "Package 'TestPackage' created successfully" in result.output
+            mock_instance.create_package.assert_called_once()
+
+            # Confirm values from custom config file are applied to package creation
+            call_args = mock_instance.create_package.call_args
+            author_arg = call_args[0][1]  # author argument (position 1)
+            user_arg = call_args[0][2]  # user argument (position 2)
+            assert author_arg == "Custom Author"
+            assert user_arg == "custom-user"
+
 
 class TestConfigCommand:
     """Test config command"""
@@ -760,6 +838,74 @@ class TestConfigCommand:
             assert result.exit_code == 0
             assert "Set default Git.ssh: True" in result.output
             assert "Configuration saved" in result.output
+
+    def test_config_set_with_custom_config_path(self, cli_runner, temp_dir):
+        """Test config set command with custom config path"""
+        custom_config_file = temp_dir / "custom-config.toml"
+
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "set",
+                "--config-path",
+                str(custom_config_file),
+                "--author",
+                "Custom Author",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Set default author: Custom Author" in result.output
+        assert "Configuration saved" in result.output
+
+        # Confirm configuration written to specified custom location with expected content
+        assert custom_config_file.exists()
+        content = custom_config_file.read_text()
+        assert 'author = "Custom Author"' in content
+
+    def test_config_show_with_custom_config_path(self, cli_runner, temp_dir):
+        """Test config show command with custom config path"""
+        custom_config_file = temp_dir / "custom-config.toml"
+        custom_config_file.write_text(
+            '[default]\nauthor = "Custom Author"\nuser = "custom-user"\n'
+        )
+
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "show",
+                "--config-path",
+                str(custom_config_file),
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Current configuration:" in result.output
+        assert "author: 'Custom Author'" in result.output
+        assert "user: 'custom-user'" in result.output
+
+    def test_config_group_with_custom_config_path(self, cli_runner, temp_dir):
+        """Test config group command with custom config path and options"""
+        custom_config_file = temp_dir / "custom-config.toml"
+
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "--config-path",
+                str(custom_config_file),
+                "--author",
+                "Custom Author",
+            ],
+        )
+
+        assert result.exit_code == 0
+        assert "Set default author: Custom Author" in result.output
+        assert "Configuration saved" in result.output
+
+        # Confirm configuration written to specified custom location with expected content
+        assert custom_config_file.exists()
+        content = custom_config_file.read_text()
+        assert 'author = "Custom Author"' in content
 
 
 class TestMainCommand:

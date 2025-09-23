@@ -182,3 +182,15 @@ def backup_user_config():
         elif real_config_path.exists():
             # Remove any test-created config file
             real_config_path.unlink()
+
+
+@pytest.fixture(autouse=True)
+def reset_config_path():
+    """Prevent test interference by restoring default config path behavior"""
+    from juliapkgtemplates.cli import set_config_path
+
+    try:
+        yield
+    finally:
+        # Restore default config path behavior to prevent cross-test contamination
+        set_config_path(None)

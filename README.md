@@ -104,6 +104,9 @@ jtc config --user "Your Name" --license MIT --formatter style=sciml
 
 # Set plugin-specific defaults
 jtc config --formatter style=blue
+
+# Use an alternate configuration file
+jtc config --config-file ~/.config/jtc/custom.toml --show
 ```
 
 ### Plugin Information
@@ -182,6 +185,8 @@ Each plugin supports various configuration options that can be set via:
 ### Configuration Location
 
 Configuration files are stored in `~/.config/jtc/config.toml` following XDG Base Directory standards.
+
+Use `--config-file` to read from or write to an alternative location, for example `jtc config set --config-file config.toml --author "Alt Author"`.
 
 If `XDG_CONFIG_HOME` environment variable is set, that location will be used instead.
 

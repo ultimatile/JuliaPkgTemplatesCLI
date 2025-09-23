@@ -23,8 +23,27 @@ def check_julia_dependencies():
         sys.exit(1)
 
 
-def get_config_path() -> Path:
-    """Get the configuration file path using XDG_CONFIG_HOME"""
+# Stores user-specified config file path to override default XDG location behavior
+_custom_config_file: Optional[Path] = None
+
+
+def set_config_file(file_path: Optional[str]) -> None:
+    """Configure custom config file path, overriding XDG default location"""
+    global _custom_config_file
+    if file_path:
+        # Resolve tilde and relative paths to absolute path for consistent behavior
+        _custom_config_file = Path(file_path).expanduser().resolve()
+    else:
+        _custom_config_file = None
+
+
+def get_config_file_path() -> Path:
+    """Return config file path, using custom override or XDG standard location"""
+    global _custom_config_file
+
+    if _custom_config_file:
+        return _custom_config_file
+
     xdg_config_home = os.environ.get("XDG_CONFIG_HOME")
     if xdg_config_home:
         config_dir = Path(xdg_config_home)
@@ -38,7 +57,7 @@ def get_config_path() -> Path:
 
 def load_config() -> dict:
     """Load configuration from config.toml"""
-    config_path = get_config_path()
+    config_path = get_config_file_path()
     config = {}
 
     if config_path.exists():
@@ -75,7 +94,11 @@ def flatten_config_for_backward_compatibility(config: dict) -> dict:
 
 def save_config(config: dict) -> None:
     """Save configuration to config.toml"""
-    config_path = get_config_path()
+    config_path = get_config_file_path()
+
+    # Create parent directories when custom config path points to non-existent location
+    config_path.parent.mkdir(parents=True, exist_ok=True)
+
     try:
         import tomli_w
 
@@ -408,6 +431,11 @@ def main():
     help='Julia version constraint (e.g., "1.10.9") for Template constructor',
 )
 @click.option(
+    "--config-file",
+    type=click.Path(),
+    help="Path to custom configuration file (e.g., ~/.config/jtc/custom.toml)",
+)
+@click.option(
     "--dry-run",
     "-n",
     is_flag=True,
@@ -449,6 +477,7 @@ def create(
     output_dir: Optional[str],
     license: Optional[str],
     julia_version: Optional[str],
+    config_file: Optional[str],
     dry_run: bool,
     verbose: bool,
     mise_filename_base: Optional[str],
@@ -456,6 +485,10 @@ def create(
     **kwargs,
 ):
     """Create a new Julia package"""
+
+    # Override default config location when user provides custom file
+    if config_file:
+        set_config_file(config_file)
 
     # Strip .jl suffix for validation while preserving original name for generation
     name_to_check = package_name
@@ -958,6 +991,11 @@ def generate_fish_completion() -> str:
 @click.option(
     "--with-mise/--no-mise", default=None, help="Set default mise task file generation"
 )
+@click.option(
+    "--config-file",
+    type=click.Path(),
+    help="Path to custom configuration file (e.g., ~/.config/jtc/custom.toml)",
+)
 @create_dynamic_plugin_options
 @click.pass_context
 def config(
@@ -969,9 +1007,14 @@ def config(
     julia_version: Optional[str],
     mise_filename_base: Optional[str],
     with_mise: Optional[bool],
+    config_file: Optional[str],
     **kwargs,
 ):
     """Configuration management"""
+    # Apply custom config file location when provided by user
+    if config_file:
+        set_config_file(config_file)
+
     if ctx.invoked_subcommand is None:
         # Check if any configuration options are provided
         has_config_options = any(
@@ -1012,7 +1055,7 @@ def _show_config():
     config_data = load_config()
     click.echo("Current configuration:")
     click.echo("=" * 40)
-    config_path = get_config_path()
+    config_path = get_config_file_path()
     click.echo(f"Config file: {config_path}")
     click.echo()
 
@@ -1118,8 +1161,17 @@ def _set_config(
 
 
 @config.command()
-def show():
+@click.option(
+    "--config-file",
+    type=click.Path(),
+    help="Path to custom configuration file (e.g., ~/.config/jtc/custom.toml)",
+)
+def show(config_file: Optional[str]):
     """Display current configuration values"""
+    # Read configuration from custom location when user specifies alternative path
+    if config_file:
+        set_config_file(config_file)
+
     _show_config()
 
 
@@ -1135,6 +1187,11 @@ def show():
 @click.option(
     "--with-mise/--no-mise", default=None, help="Set default mise task file generation"
 )
+@click.option(
+    "--config-file",
+    type=click.Path(),
+    help="Path to custom configuration file (e.g., ~/.config/jtc/custom.toml)",
+)
 @create_dynamic_plugin_options
 def set_config(
     author: Optional[str],
@@ -1144,9 +1201,14 @@ def set_config(
     julia_version: Optional[str],
     mise_filename_base: Optional[str],
     with_mise: Optional[bool],
+    config_file: Optional[str],
     **kwargs,
 ):
     """Set configuration values"""
+    # Save configuration to custom location when user specifies alternative path
+    if config_file:
+        set_config_file(config_file)
+
     _set_config(
         author,
         user,
