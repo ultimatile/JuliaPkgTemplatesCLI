@@ -951,7 +951,6 @@ def generate_fish_completion() -> str:
 @click.option("--user", help="Set default user")
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
-@click.option("--template", help="Set default template")
 @click.option(
     "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
 )
@@ -967,7 +966,6 @@ def config(
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
-    template: Optional[str],
     julia_version: Optional[str],
     mise_filename_base: Optional[str],
     with_mise: Optional[bool],
@@ -982,7 +980,6 @@ def config(
                 user is not None,
                 mail is not None,
                 license is not None,
-                template is not None,
                 julia_version is not None,
                 mise_filename_base is not None,
                 with_mise is not None,
@@ -1000,7 +997,6 @@ def config(
                 user,
                 mail,
                 license,
-                template,
                 julia_version,
                 mise_filename_base,
                 with_mise,
@@ -1030,7 +1026,6 @@ def _show_config():
         "user",
         "mail",
         "license_type",
-        "template",
         "julia_version",
         "mise_filename_base",
         "with_mise",
@@ -1062,7 +1057,6 @@ def _set_config(
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
-    template: Optional[str],
     julia_version: Optional[str],
     mise_filename_base: Optional[str],
     with_mise: Optional[bool],
@@ -1093,10 +1087,6 @@ def _set_config(
     if license is not None:
         config_data["default"]["license_type"] = license
         click.echo(f"Set default license: {license}")
-        updated = True
-    if template is not None:
-        config_data["default"]["template"] = template
-        click.echo(f"Set default template: {template}")
         updated = True
     if julia_version is not None:
         config_data["default"]["julia_version"] = julia_version
@@ -1138,7 +1128,6 @@ def show():
 @click.option("--user", help="Set default user")
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
-@click.option("--template", help="Set default template")
 @click.option(
     "--julia-version", help="Set default Julia version constraint (e.g., 1.10.9)"
 )
@@ -1152,7 +1141,6 @@ def set_config(
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
-    template: Optional[str],
     julia_version: Optional[str],
     mise_filename_base: Optional[str],
     with_mise: Optional[bool],
@@ -1164,7 +1152,6 @@ def set_config(
         user,
         mail,
         license,
-        template,
         julia_version,
         mise_filename_base,
         with_mise,
