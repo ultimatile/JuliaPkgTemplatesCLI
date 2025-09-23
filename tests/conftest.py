@@ -147,9 +147,11 @@ def isolated_config(temp_config_dir):
     import os
     from unittest.mock import patch
 
-    # Mock both get_config_path and XDG_CONFIG_HOME to use temp directory
+    # Mock both get_config_file_path and XDG_CONFIG_HOME to use temp directory
     with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(temp_config_dir)}, clear=False):
-        with patch("juliapkgtemplates.cli.get_config_path") as mock_get_config_path:
+        with patch(
+            "juliapkgtemplates.cli.get_config_file_path"
+        ) as mock_get_config_path:
             config_file = temp_config_dir / "jtc" / "config.toml"
             # Ensure the directory exists
             config_file.parent.mkdir(parents=True, exist_ok=True)
@@ -161,9 +163,9 @@ def isolated_config(temp_config_dir):
 def backup_user_config():
     """Automatically backup and restore user config file during tests"""
     import shutil
-    from juliapkgtemplates.cli import get_config_path
+    from juliapkgtemplates.cli import get_config_file_path
 
-    real_config_path = get_config_path()
+    real_config_path = get_config_file_path()
     backup_path = None
 
     try:
@@ -186,11 +188,11 @@ def backup_user_config():
 
 @pytest.fixture(autouse=True)
 def reset_config_path():
-    """Prevent test interference by restoring default config path behavior"""
-    from juliapkgtemplates.cli import set_config_path
+    """Prevent test interference by restoring default config file path behavior"""
+    from juliapkgtemplates.cli import set_config_file
 
     try:
         yield
     finally:
-        # Restore default config path behavior to prevent cross-test contamination
-        set_config_path(None)
+        # Restore default config file path behavior to prevent cross-test contamination
+        set_config_file(None)

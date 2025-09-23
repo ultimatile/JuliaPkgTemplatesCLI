@@ -7,29 +7,29 @@ from unittest.mock import patch, Mock
 
 from juliapkgtemplates.cli import (
     main,
-    get_config_path,
+    get_config_file_path,
     load_config,
     save_config,
     create,
     config as config_cmd,
-    set_config_path,
+    set_config_file,
 )
 
 
 class TestConfigFunctions:
     """Test configuration-related functions"""
 
-    def test_get_config_path_with_xdg_config_home(self, temp_config_dir):
-        """Test config path with XDG_CONFIG_HOME set"""
+    def test_get_config_file_path_with_xdg_config_home(self, temp_config_dir):
+        """Test config file with XDG_CONFIG_HOME set"""
         with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(temp_config_dir)}):
-            config_path = get_config_path()
+            config_path = get_config_file_path()
             assert config_path == temp_config_dir / "jtc" / "config.toml"
 
-    def test_get_config_path_without_xdg_config_home(self, temp_config_dir):
-        """Test config path without XDG_CONFIG_HOME"""
+    def test_get_config_file_path_without_xdg_config_home(self, temp_config_dir):
+        """Test config file without XDG_CONFIG_HOME"""
         with patch.dict(os.environ, {}, clear=True):
             with patch("pathlib.Path.home", return_value=temp_config_dir):
-                config_path = get_config_path()
+                config_path = get_config_file_path()
                 expected = temp_config_dir / ".config" / "jtc" / "config.toml"
                 assert config_path == expected
 
@@ -39,7 +39,9 @@ class TestConfigFunctions:
         config_file = temp_config_dir / "config.toml"
         config_file.write_bytes(config_content)
 
-        with patch("juliapkgtemplates.cli.get_config_path", return_value=config_file):
+        with patch(
+            "juliapkgtemplates.cli.get_config_file_path", return_value=config_file
+        ):
             config = load_config()
             assert config["default"]["author"] == "Test Author"
             assert config["default"]["license"] == "MIT"
@@ -48,7 +50,9 @@ class TestConfigFunctions:
         """Test loading config when file doesn't exist"""
         config_file = temp_config_dir / "nonexistent.toml"
 
-        with patch("juliapkgtemplates.cli.get_config_path", return_value=config_file):
+        with patch(
+            "juliapkgtemplates.cli.get_config_file_path", return_value=config_file
+        ):
             config = load_config()
             assert config == {}
 
@@ -57,7 +61,9 @@ class TestConfigFunctions:
         config_file = temp_config_dir / "invalid.toml"
         config_file.write_text("invalid toml content [")
 
-        with patch("juliapkgtemplates.cli.get_config_path", return_value=config_file):
+        with patch(
+            "juliapkgtemplates.cli.get_config_file_path", return_value=config_file
+        ):
             config = load_config()
             assert config == {}
             captured = capsys.readouterr()
@@ -68,7 +74,9 @@ class TestConfigFunctions:
         config_file = temp_config_dir / "config.toml"
         test_config = {"default": {"author": "Test Author", "license": "MIT"}}
 
-        with patch("juliapkgtemplates.cli.get_config_path", return_value=config_file):
+        with patch(
+            "juliapkgtemplates.cli.get_config_file_path", return_value=config_file
+        ):
             save_config(test_config)
 
         # Verify file was created and contains expected content
@@ -82,7 +90,9 @@ class TestConfigFunctions:
         config_file = temp_config_dir / "config.toml"
         test_config = {"default": {"author": "Test Author", "license": "MIT"}}
 
-        with patch("juliapkgtemplates.cli.get_config_path", return_value=config_file):
+        with patch(
+            "juliapkgtemplates.cli.get_config_file_path", return_value=config_file
+        ):
             with patch("tomli_w.dump", side_effect=ImportError):
                 save_config(test_config)
 
@@ -92,30 +102,30 @@ class TestConfigFunctions:
         assert 'author = "Test Author"' in content
         assert 'license = "MIT"' in content
 
-    def test_set_config_path(self, temp_config_dir):
-        """Test setting custom config path"""
+    def test_set_config_file(self, temp_config_dir):
+        """Test setting custom config file"""
         custom_config_file = temp_config_dir / "custom.toml"
 
         # Set custom path
-        set_config_path(str(custom_config_file))
+        set_config_file(str(custom_config_file))
 
         # Verify custom path is returned when requesting config location
-        config_path = get_config_path()
+        config_path = get_config_file_path()
         assert config_path.resolve() == custom_config_file.resolve()
 
-    def test_set_config_path_none(self, temp_config_dir):
-        """Test resetting config path to default"""
+    def test_set_config_file_none(self, temp_config_dir):
+        """Test resetting config file to default"""
         custom_config_file = temp_config_dir / "custom.toml"
 
         # Set custom path first
-        set_config_path(str(custom_config_file))
+        set_config_file(str(custom_config_file))
 
         # Reset to default
-        set_config_path(None)
+        set_config_file(None)
 
         # Confirm fallback to standard XDG location when custom path is cleared
         with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(temp_config_dir)}):
-            config_path = get_config_path()
+            config_path = get_config_file_path()
             assert config_path == temp_config_dir / "jtc" / "config.toml"
 
     def test_save_config_with_custom_path(self, temp_config_dir):
@@ -125,7 +135,7 @@ class TestConfigFunctions:
         test_config = {"default": {"author": "Test Author"}}
 
         # Set custom path
-        set_config_path(str(custom_config_file))
+        set_config_file(str(custom_config_file))
 
         # Exercise directory creation logic when saving to non-existent path
         save_config(test_config)
@@ -705,8 +715,8 @@ class TestCreateCommand:
                 config = call_args[0][5]  # PackageConfig (position 5)
                 assert config.with_mise is True
 
-    def test_create_with_custom_config_path(self, cli_runner, temp_dir):
-        """Test create command with custom config path"""
+    def test_create_with_custom_config_file(self, cli_runner, temp_dir):
+        """Test create command with custom config file"""
         custom_config_file = temp_dir / "custom-config.toml"
         custom_config_file.write_text(
             '[default]\nauthor = "Custom Author"\nuser = "custom-user"\n'
@@ -721,7 +731,7 @@ class TestCreateCommand:
                 create,
                 [
                     "TestPackage",
-                    "--config-path",
+                    "--config-file",
                     str(custom_config_file),
                     "--output-dir",
                     str(temp_dir),
@@ -839,15 +849,15 @@ class TestConfigCommand:
             assert "Set default Git.ssh: True" in result.output
             assert "Configuration saved" in result.output
 
-    def test_config_set_with_custom_config_path(self, cli_runner, temp_dir):
-        """Test config set command with custom config path"""
+    def test_config_set_with_custom_config_file(self, cli_runner, temp_dir):
+        """Test config set command with custom config file"""
         custom_config_file = temp_dir / "custom-config.toml"
 
         result = cli_runner.invoke(
             config_cmd,
             [
                 "set",
-                "--config-path",
+                "--config-file",
                 str(custom_config_file),
                 "--author",
                 "Custom Author",
@@ -863,8 +873,8 @@ class TestConfigCommand:
         content = custom_config_file.read_text()
         assert 'author = "Custom Author"' in content
 
-    def test_config_show_with_custom_config_path(self, cli_runner, temp_dir):
-        """Test config show command with custom config path"""
+    def test_config_show_with_custom_config_file(self, cli_runner, temp_dir):
+        """Test config show command with custom config file"""
         custom_config_file = temp_dir / "custom-config.toml"
         custom_config_file.write_text(
             '[default]\nauthor = "Custom Author"\nuser = "custom-user"\n'
@@ -874,7 +884,7 @@ class TestConfigCommand:
             config_cmd,
             [
                 "show",
-                "--config-path",
+                "--config-file",
                 str(custom_config_file),
             ],
         )
@@ -884,14 +894,14 @@ class TestConfigCommand:
         assert "author: 'Custom Author'" in result.output
         assert "user: 'custom-user'" in result.output
 
-    def test_config_group_with_custom_config_path(self, cli_runner, temp_dir):
-        """Test config group command with custom config path and options"""
+    def test_config_group_with_custom_config_file(self, cli_runner, temp_dir):
+        """Test config group command with custom config file and options"""
         custom_config_file = temp_dir / "custom-config.toml"
 
         result = cli_runner.invoke(
             config_cmd,
             [
-                "--config-path",
+                "--config-file",
                 str(custom_config_file),
                 "--author",
                 "Custom Author",
