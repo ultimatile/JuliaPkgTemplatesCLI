@@ -284,7 +284,9 @@ class TestCreateCommand:
 
                 # Check that config values were used
                 call_args = mock_instance.create_package.call_args
-                assert call_args[0][1] == "Config Author"  # author (position 1)
+                assert call_args[0][1] == [
+                    "Config Author"
+                ]  # author (position 1) - now a list
                 assert call_args[0][2] == "configuser"  # user (position 2)
                 assert call_args[0][3] == "config@example.com"  # mail (position 3)
                 # License is now handled as plugin option, not license_type field
@@ -426,7 +428,7 @@ class TestCreateCommand:
                 call_args = mock_instance.generate_julia_code.call_args
 
                 # Check that config values were used
-                assert call_args[0][1] == "Config Author"  # author
+                assert call_args[0][1] == ["Config Author"]  # author - now a list
                 assert call_args[0][2] == "configuser"  # user
                 assert call_args[0][3] == "config@example.com"  # mail
                 # output_dir is position 4, PackageConfig is position 5
@@ -475,7 +477,9 @@ class TestCreateCommand:
 
                 # Verify that CLI values override config values
                 call_args = mock_instance.generate_julia_code.call_args
-                assert call_args[0][1] == "CLI Author"  # author overridden
+                assert call_args[0][1] == [
+                    "CLI Author"
+                ]  # author overridden - now a list
 
                 config = call_args[0][5]
                 assert (
@@ -746,7 +750,7 @@ class TestCreateCommand:
             call_args = mock_instance.create_package.call_args
             author_arg = call_args[0][1]  # author argument (position 1)
             user_arg = call_args[0][2]  # user argument (position 2)
-            assert author_arg == "Custom Author"
+            assert author_arg == ["Custom Author"]
             assert user_arg == "custom-user"
 
 
@@ -916,6 +920,210 @@ class TestConfigCommand:
         assert custom_config_file.exists()
         content = custom_config_file.read_text()
         assert 'author = "Custom Author"' in content
+
+
+class TestMultipleAuthors:
+    """Test unified author handling supporting both single and multiple authors
+
+    Design rationale: These tests verify the unified author interface that replaced
+    the separate --authors option, ensuring backward compatibility while providing
+    more intuitive user experience through consistent --author option usage.
+    """
+
+    def test_create_with_multiple_author_options(
+        self, cli_runner, temp_dir, mock_subprocess
+    ):
+        """Test create command with multiple --author options
+
+        Verifies that multiple --author options are properly parsed and passed
+        as a list to the generator, maintaining the unified author interface.
+        """
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--author",
+                    "Author One",
+                    "--author",
+                    "Author Two <author2@example.com>",
+                    "--author",
+                    "Author Three",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify multiple authors are passed correctly
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 3
+            assert "Author One" in authors_arg
+            assert "Author Two <author2@example.com>" in authors_arg
+            assert "Author Three" in authors_arg
+
+    def test_create_with_comma_separated_authors(
+        self, cli_runner, temp_dir, mock_subprocess
+    ):
+        """Test create command with comma-separated authors in single --author option
+
+        Validates the flexible parsing that allows users to specify multiple authors
+        within a single --author option using comma separation for convenience.
+        """
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--author",
+                    "Author One, Author Two <author2@example.com>, Author Three",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify comma-separated authors are parsed correctly
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 3
+            assert "Author One" in authors_arg
+            assert "Author Two <author2@example.com>" in authors_arg
+            assert "Author Three" in authors_arg
+
+    def test_single_author_option_converted_to_list(
+        self, cli_runner, temp_dir, mock_subprocess
+    ):
+        """Test that single --author is converted to list format"""
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--author",
+                    "Single Author",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify single author is passed as list
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 1
+            assert authors_arg[0] == "Single Author"
+
+    def test_config_file_author_array_support(
+        self, cli_runner, temp_dir, temp_config_dir, mock_subprocess
+    ):
+        """Test config file support for author array
+
+        Ensures backward compatibility with existing config files that store
+        multiple authors as arrays under the 'author' key.
+        """
+        config_file = temp_config_dir / "config.toml"
+        with config_file.open("w", encoding="utf-8") as f:
+            f.write(
+                "[default]\n"
+                'author = ["Config Author One", "Config Author Two <author2@example.com>"]\n'
+                'license_type = "MIT"\n'
+            )
+
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--config-file",
+                    str(config_file),
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+                env={"XDG_CONFIG_HOME": str(temp_config_dir.parent)},
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify config authors are used correctly
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 2
+            assert "Config Author One" in authors_arg
+            assert "Config Author Two <author2@example.com>" in authors_arg
+
+    def test_config_file_author_comma_separated_string(
+        self, cli_runner, temp_dir, temp_config_dir, mock_subprocess
+    ):
+        """Test config file support for comma-separated author string
+
+        Validates flexible config file format supporting comma-separated authors
+        in string format, providing users multiple ways to specify authors.
+        """
+        config_file = temp_config_dir / "config.toml"
+        with config_file.open("w", encoding="utf-8") as f:
+            f.write(
+                "[default]\n"
+                'author = "Author One, Author Two <author2@example.com>, Author Three"\n'
+                'license_type = "MIT"\n'
+            )
+
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--config-file",
+                    str(config_file),
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+                env={"XDG_CONFIG_HOME": str(temp_config_dir.parent)},
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify comma-separated authors are parsed correctly
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 3
+            assert "Author One" in authors_arg
+            assert "Author Two <author2@example.com>" in authors_arg
+            assert "Author Three" in authors_arg
 
 
 class TestMainCommand:
