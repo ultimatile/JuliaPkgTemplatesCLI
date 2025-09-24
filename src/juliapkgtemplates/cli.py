@@ -6,7 +6,7 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import click
 from jinja2 import Environment, PackageLoader
@@ -409,7 +409,15 @@ def main():
 
 @main.command()
 @click.argument("package_name")
-@click.option("--author", "-a", help=get_author_help())
+# Enhanced author option supporting both single and multiple authors through unified interface
+# Design decision: Use single --author option with multiple=True instead of separate --authors
+# to provide more intuitive user experience while maintaining backward compatibility
+@click.option(
+    "--author",
+    "-a",
+    multiple=True,
+    help="Author names for the package. Examples: --author 'A, B' or --author 'A' --author 'B'. Supports both single and multiple authors.",
+)
 @click.option("--user", "-u", help=get_user_help())
 @click.option("--mail", "-m", help=get_mail_help())
 @click.option(
@@ -471,7 +479,7 @@ def main():
 def create(
     ctx: click.Context,
     package_name: str,
-    author: Optional[str],
+    author: Tuple[str, ...],
     user: Optional[str],
     mail: Optional[str],
     output_dir: Optional[str],
@@ -524,7 +532,34 @@ def create(
         enabled_plugins.append(plugin_name)
 
     # Apply config defaults if CLI arguments not provided
-    final_author = author or defaults.get("author")
+    # Author resolution follows simplified precedence: CLI --author > config author > PkgTemplates.jl fallback
+    # Design rationale: Unified author handling eliminates complexity of separate authors/author precedence
+    # All authors are normalized to list format for consistent PkgTemplates.jl processing
+    if author:
+        # Support both multiple --author options and comma-separated values within each option
+        # This flexible parsing allows users to specify authors in their preferred format
+        expanded_authors = []
+        for author_string in author:
+            split_authors = [a.strip() for a in author_string.split(",") if a.strip()]
+            expanded_authors.extend(split_authors)
+        final_authors = expanded_authors
+        final_author = None
+    else:
+        config_author = defaults.get("author")
+        if config_author:
+            # Handle both list and string formats for backward compatibility with existing configs
+            if isinstance(config_author, list):
+                final_authors = config_author
+            else:
+                # Parse comma-separated string from config file
+                final_authors = [
+                    a.strip() for a in str(config_author).split(",") if a.strip()
+                ]
+            final_author = None
+        else:
+            # No author specified - delegate to PkgTemplates.jl git config fallback
+            final_authors = None
+            final_author = None
     final_user = user or defaults.get("user")
     final_mail = mail or defaults.get("mail")
     final_output_dir = output_dir or defaults.get("output_dir", ".")
@@ -588,7 +623,8 @@ def create(
     # Then, apply config file options for all enabled plugins (CLI + config-detected)
     if all_enabled_plugins:  # Only if there are enabled plugins
         config_plugin_options = defaults.copy()
-        # Remove non-plugin configuration
+        # Remove non-plugin configuration from plugin processing
+        # Note: 'authors' key removed from cleanup list as it's no longer used (unified under 'author')
         for key in [
             "enabled_plugins",
             "license_type",
@@ -649,7 +685,7 @@ def create(
         # Preview Julia Template function without package creation side effects
         julia_code = generator.generate_julia_code(
             package_name,
-            final_author,
+            final_authors or final_author,
             final_user,
             final_mail,
             Path(final_output_dir),
@@ -664,7 +700,8 @@ def create(
     try:
         package_dir = generator.create_package(
             package_name,
-            final_author,
+            final_authors
+            or final_author,  # Authors list or None for PkgTemplates.jl fallback
             final_user,
             final_mail,
             Path(final_output_dir),
@@ -979,8 +1016,14 @@ def generate_fish_completion() -> str:
     )
 
 
+# Configuration command group with unified author handling
+# Design decision: Apply same author interface consistency to config commands
 @main.group(invoke_without_command=True)
-@click.option("--author", help="Set default author")
+@click.option(
+    "--author",
+    multiple=True,
+    help="Set default author(s). Examples: --author 'A, B' or --author 'A' --author 'B'. Supports both single and multiple authors.",
+)
 @click.option("--user", help="Set default user")
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
@@ -1000,7 +1043,7 @@ def generate_fish_completion() -> str:
 @click.pass_context
 def config(
     ctx,
-    author: Optional[str],
+    author: Tuple[str, ...],
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
@@ -1019,7 +1062,7 @@ def config(
         # Check if any configuration options are provided
         has_config_options = any(
             [
-                author is not None,
+                author,
                 user is not None,
                 mail is not None,
                 license is not None,
@@ -1064,6 +1107,8 @@ def _show_config():
         click.echo("No configuration set")
         return
 
+    # Define basic configuration keys for display purposes
+    # Removed 'authors' key as part of unified author handling - only 'author' key is used now
     basic_config_keys = {
         "author",
         "user",
@@ -1096,7 +1141,7 @@ def _show_config():
 
 
 def _set_config(
-    author: Optional[str],
+    author: Tuple[str, ...],
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
@@ -1115,9 +1160,23 @@ def _set_config(
 
     # Set configuration values
     updated = False
-    if author is not None:
-        config_data["default"]["author"] = author
-        click.echo(f"Set default author: {author}")
+    if author:
+        # Support both multiple --author options and comma-separated values within each option
+        # Consistent parsing logic with create command for uniform user experience
+        expanded_authors = []
+        for author_string in author:
+            # Split by comma and strip whitespace from each author
+            split_authors = [a.strip() for a in author_string.split(",") if a.strip()]
+            expanded_authors.extend(split_authors)
+
+        # Store as list for multiple authors, or as single string for backward compatibility
+        # Design choice: Preserve string format for single author to maintain compatibility with existing configs
+        if len(expanded_authors) == 1:
+            config_data["default"]["author"] = expanded_authors[0]
+            click.echo(f"Set default author: {expanded_authors[0]}")
+        else:
+            config_data["default"]["author"] = expanded_authors
+            click.echo(f"Set default author(s): {', '.join(expanded_authors)}")
         updated = True
     if user is not None:
         config_data["default"]["user"] = user
@@ -1175,8 +1234,14 @@ def show(config_file: Optional[str]):
     _show_config()
 
 
+# Config set subcommand with consistent author interface
+# Maintains same user experience as main config command and create command
 @config.command("set")
-@click.option("--author", help="Set default author")
+@click.option(
+    "--author",
+    multiple=True,
+    help="Set default author(s). Examples: --author 'A, B' or --author 'A' --author 'B'. Supports both single and multiple authors.",
+)
 @click.option("--user", help="Set default user")
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
@@ -1194,7 +1259,7 @@ def show(config_file: Optional[str]):
 )
 @create_dynamic_plugin_options
 def set_config(
-    author: Optional[str],
+    author: Tuple[str, ...],
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],

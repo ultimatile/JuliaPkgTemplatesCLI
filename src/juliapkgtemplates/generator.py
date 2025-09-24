@@ -7,7 +7,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -288,7 +288,7 @@ class JuliaPackageGenerator:
     def create_package(
         self,
         package_name: str,
-        author: Optional[str],
+        author: Optional[Union[str, List[str]]],
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
@@ -300,7 +300,7 @@ class JuliaPackageGenerator:
 
         Args:
             package_name: Name of the package
-            author: Author name
+            author: Author name(s) - can be a string or list of strings(s) - can be a string or list of strings
             user: Git hosting username
             mail: Email address
             output_dir: Directory where package will be created
@@ -344,7 +344,7 @@ class JuliaPackageGenerator:
     def generate_julia_code(
         self,
         package_name: str,
-        author: Optional[str],
+        author: Optional[Union[str, List[str]]],
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
@@ -355,7 +355,7 @@ class JuliaPackageGenerator:
 
         Args:
             package_name: Name of the package
-            author: Author name
+            author: Author name(s) - can be a string or list of strings
             user: Git hosting username
             mail: Email address
             output_dir: Directory where package would be created
@@ -411,7 +411,7 @@ class JuliaPackageGenerator:
     def _generate_julia_template_code(
         self,
         package_name: str,
-        author: Optional[str],
+        author: Optional[Union[str, List[str]]],
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
@@ -421,9 +421,22 @@ class JuliaPackageGenerator:
         """Generate Julia Template function code for visualization using Jinja2 template"""
         # Generate Julia code using the same Jinja2 template
         template = self.jinja_env.get_template("julia_template.j2")
+
+        # Normalize authors parameter to list format for template consistency
+        # Supports both legacy single author and new multiple authors functionality
+        if isinstance(author, list):
+            authors_list = author
+        elif author is not None:
+            authors_list = [author]
+        else:
+            authors_list = None
+
         julia_code = template.render(
             package_name=package_name,
-            author=author,
+            authors=authors_list,
+            author=authors_list[0]
+            if authors_list
+            else None,  # Legacy single author field for template compatibility
             user=user,
             mail=mail,
             output_dir=str(output_dir),
@@ -436,7 +449,7 @@ class JuliaPackageGenerator:
     def _call_julia_generator(
         self,
         package_name: str,
-        author: Optional[str],
+        author: Optional[Union[str, List[str]]],
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
@@ -447,9 +460,22 @@ class JuliaPackageGenerator:
         """Execute PkgTemplates.jl package generation via Jinja2 template"""
         # Generate Julia code using Jinja2 template
         template = self.jinja_env.get_template("julia_template.j2")
+
+        # Normalize authors parameter to list format for template consistency
+        # Supports both legacy single author and new multiple authors functionality
+        if isinstance(author, list):
+            authors_list = author
+        elif author is not None:
+            authors_list = [author]
+        else:
+            authors_list = None
+
         julia_code = template.render(
             package_name=package_name,
-            author=author,
+            authors=authors_list,
+            author=authors_list[0]
+            if authors_list
+            else None,  # Legacy single author field for template compatibility
             user=user,
             mail=mail,
             output_dir=str(output_dir),

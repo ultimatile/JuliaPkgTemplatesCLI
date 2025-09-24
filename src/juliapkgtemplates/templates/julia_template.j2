@@ -6,7 +6,7 @@ using LibGit2: GitError
 println("Loading PkgTemplates.jl...")
 try
     println("Creating package: {{ package_name }}")
-{% if author %}    println("Author: {{ author }}")
+{% if authors %}    println("Authors: {{ authors|join(', ') }}")
 {% endif %}{% if user %}    println("User: {{ user }}")
 {% endif %}{% if mail %}    println("Mail: {{ mail }}")
 {% endif %}    println("Output directory: {{ output_dir }}")
@@ -15,9 +15,9 @@ try
 {% endif %}
     t = Template(;
         dir="{{ output_dir }}",
-{% if author and mail %}        authors=["{{ author }} <{{ mail }}>"],
-{% elif author %}        authors=["{{ author }}"],
-{% endif %}{% if user %}        user="{{ user }}",
+{% if authors %}{% if mail and authors|length == 1 %}        authors=["{{ authors[0] }} <{{ mail }}>"],  # Single author with email integration
+{% else %}        authors=[{% for author in authors %}"{{ author }}"{% if not loop.last %}, {% endif %}{% endfor %}],  # Multiple authors support
+{% endif %}{% endif %}{% if user %}        user="{{ user }}",
 {% endif %}{% if julia_version %}        julia=v"{{ julia_version.lstrip('v') }}",
 {% endif %}        plugins=[{{ plugins|join(', ') }}]
     )
