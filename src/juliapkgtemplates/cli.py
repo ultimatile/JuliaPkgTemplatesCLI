@@ -14,6 +14,24 @@ from jinja2 import Environment, PackageLoader
 from .generator import JuliaPackageGenerator, PackageConfig, JuliaDependencyError
 
 
+# Plugins that can be enabled without arguments (default constructor)
+ARGUMENTLESS_PLUGINS = {
+    "SrcDir",
+    "GitLabCI",
+    "TravisCI",
+    "AppVeyor",
+    "CirrusCI",
+    "DroneCI",
+    "Readme",
+    "BlueStyleBadge",
+    "ColPracBadge",
+    "PkgEvalBadge",
+    "Citation",
+    "CodeOwners",
+    "Develop",
+}
+
+
 def check_julia_dependencies():
     """Check Julia dependencies early and exit if not available"""
     try:
@@ -593,7 +611,7 @@ def create(
                 "Codecov",
                 "GitHubActions",
                 "License",
-            }
+            } | ARGUMENTLESS_PLUGINS
             if key in known_plugins:
                 config_detected_plugins.add(key)
 
@@ -660,7 +678,7 @@ def create(
                     "CompatHelper",
                     "Codecov",
                     "GitHubActions",
-                }
+                } | ARGUMENTLESS_PLUGINS
                 if key in known_plugins and key in all_enabled_plugins:
                     if key not in final_plugin_options:
                         final_plugin_options[key] = {}
@@ -669,6 +687,13 @@ def create(
                         for option_name, option_value in value.items():
                             if option_name not in final_plugin_options[key]:
                                 final_plugin_options[key][option_name] = option_value
+                    elif (
+                        isinstance(value, bool)
+                        and value
+                        and key in ARGUMENTLESS_PLUGINS
+                    ):
+                        # Boolean true value for argumentless plugins - enable with no options
+                        pass  # Empty dict already created above
                     else:
                         # This shouldn't happen in normal config, but handle gracefully
                         pass
@@ -1205,11 +1230,16 @@ def _set_config(
 
     # Process plugin options - save in nested structure
     for plugin_name, options in plugin_options.items():
-        if plugin_name not in config_data["default"]:
-            config_data["default"][plugin_name] = {}
-        for option_key, option_value in options.items():
-            config_data["default"][plugin_name][option_key] = option_value
-            click.echo(f"Set default {plugin_name}.{option_key}: {option_value}")
+        if options:  # Plugin has options
+            if plugin_name not in config_data["default"]:
+                config_data["default"][plugin_name] = {}
+            for option_key, option_value in options.items():
+                config_data["default"][plugin_name][option_key] = option_value
+                click.echo(f"Set default {plugin_name}.{option_key}: {option_value}")
+                updated = True
+        elif plugin_name in ARGUMENTLESS_PLUGINS:  # Argumentless plugin activation
+            config_data["default"][plugin_name] = True
+            click.echo(f"Enabled argumentless plugin: {plugin_name}")
             updated = True
 
     if updated:
