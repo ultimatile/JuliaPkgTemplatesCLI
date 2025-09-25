@@ -921,6 +921,75 @@ class TestConfigCommand:
         content = custom_config_file.read_text()
         assert 'author = "Custom Author"' in content
 
+    def test_config_set_argumentless_plugin(self, cli_runner, isolated_config):
+        """Test setting argumentless plugin with flag only"""
+        result = cli_runner.invoke(config_cmd, ["set", "--srcdir"])
+        assert result.exit_code == 0
+        assert "Enabled argumentless plugin: SrcDir" in result.output
+        assert "Configuration saved" in result.output
+
+        # Verify config content
+        config = load_config()
+        assert config["default"]["SrcDir"] is True
+
+    def test_config_set_multiple_argumentless_plugins(
+        self, cli_runner, isolated_config
+    ):
+        """Test setting multiple argumentless plugins"""
+        result = cli_runner.invoke(config_cmd, ["set", "--srcdir", "--gitlabci"])
+        assert result.exit_code == 0
+        assert "Enabled argumentless plugin: SrcDir" in result.output
+        assert "Enabled argumentless plugin: GitLabCI" in result.output
+        assert "Configuration saved" in result.output
+
+        # Verify config content
+        config = load_config()
+        assert config["default"]["SrcDir"] is True
+        assert config["default"]["GitLabCI"] is True
+
+    def test_config_set_argumentless_and_argument_plugins(
+        self, cli_runner, isolated_config
+    ):
+        """Test setting both argumentless and argument plugins together"""
+        result = cli_runner.invoke(
+            config_cmd, ["set", "--srcdir", "--formatter", "style=blue"]
+        )
+        assert result.exit_code == 0
+        assert "Enabled argumentless plugin: SrcDir" in result.output
+        assert "Set default Formatter.style: blue" in result.output
+        assert "Configuration saved" in result.output
+
+        # Verify config content
+        config = load_config()
+        assert config["default"]["SrcDir"] is True
+        assert config["default"]["Formatter"]["style"] == "blue"
+
+    @patch("juliapkgtemplates.cli.JuliaPackageGenerator")
+    def test_create_with_argumentless_plugin_config(
+        self, mock_gen, cli_runner, temp_dir, isolated_config
+    ):
+        """Test create command loads argumentless plugin from config"""
+        # Set up config with argumentless plugin
+        cli_runner.invoke(config_cmd, ["set", "--srcdir"])
+
+        # Mock generator
+        mock_instance = Mock()
+        mock_instance.create_package.return_value = temp_dir / "TestPackage"
+        mock_gen.return_value = mock_instance
+
+        # Create package
+        result = cli_runner.invoke(create, ["TestPackage", "--author", "Test Author"])
+
+        assert result.exit_code == 0
+
+        # Verify SrcDir plugin was enabled
+        mock_instance.create_package.assert_called_once()
+        call_args = mock_instance.create_package.call_args
+        package_config = call_args[0][5]  # PackageConfig parameter
+
+        assert "SrcDir" in package_config.enabled_plugins
+        assert package_config.plugin_options["SrcDir"] == {}
+
 
 class TestMultipleAuthors:
     """Test unified author handling supporting both single and multiple authors
