@@ -234,7 +234,11 @@ class JuliaPackageGenerator:
         option_strings = []
         for key, value in plugin_options.items():
             if isinstance(value, str):
-                option_strings.append(f'{key}="{value}"')
+                # Special handling for ProjectFile version parameter
+                if plugin_name == "ProjectFile" and key == "version":
+                    option_strings.append(f'{key}=v"{value}"')
+                else:
+                    option_strings.append(f'{key}="{value}"')
             elif isinstance(value, bool):
                 option_strings.append(f"{key}={str(value).lower()}")
             elif isinstance(value, list):
