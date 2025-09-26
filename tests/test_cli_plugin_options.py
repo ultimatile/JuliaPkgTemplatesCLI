@@ -342,3 +342,276 @@ class TestCLICommands:
         assert config_data["default"]["Git"]["manifest"] is True
         # ssh should not be present since it was only in the first option
         assert "ssh" not in config_data["default"]["Git"]
+
+    def test_config_command_multiple_ignore_executions(self, isolated_config):
+        """Test multiple config set executions with git ignore - should merge or override"""
+        runner = CliRunner()
+
+        # First execution: set ignore to "*.tmp"
+        result1 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore="*.tmp"',
+            ],
+        )
+        assert result1.exit_code == 0
+        assert "Set default Git.ignore: *.tmp" in result1.output
+        assert "Configuration saved" in result1.output
+
+        # Verify first config
+        config_data = load_config()
+        assert config_data["default"]["Git"]["ignore"] == "*.tmp"
+
+        # Second execution: set ignore to "*.log"
+        result2 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore="*.log"',
+            ],
+        )
+        assert result2.exit_code == 0
+        assert "Set default Git.ignore: *.log" in result2.output
+        assert "Configuration saved" in result2.output
+
+        # Verify final config - check if it merges or overrides
+        config_data = load_config()
+        final_ignore = config_data["default"]["Git"]["ignore"]
+
+        # Document current behavior: last value wins (override)
+        # TODO: Consider if this should merge instead for array-like values
+        assert final_ignore == "*.log"
+
+        # Test package creation to see if this works correctly
+        result3 = runner.invoke(
+            main,
+            [
+                "create",
+                "TestPkg",
+                "--dry-run",
+            ],
+        )
+
+        # Should fail with type conversion error since string != Vector{String}
+        # This demonstrates the core issue
+        assert result3.exit_code != 0 or "Error creating package" in result3.output
+
+    def test_config_command_multiple_ignore_array_executions(self, isolated_config):
+        """Test multiple config set executions with array format git ignore"""
+        runner = CliRunner()
+
+        # First execution: set ignore to array with one item
+        result1 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore=["*.tmp"]',
+            ],
+        )
+        assert result1.exit_code == 0
+        assert "Configuration saved" in result1.output
+
+        # Verify first config
+        config_data = load_config()
+        assert config_data["default"]["Git"]["ignore"] == ["*.tmp"]
+
+        # Second execution: set ignore to array with different item
+        result2 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore=["*.log"]',
+            ],
+        )
+        assert result2.exit_code == 0
+        assert "Configuration saved" in result2.output
+
+        # Verify final config - should override, not merge
+        config_data = load_config()
+        final_ignore = config_data["default"]["Git"]["ignore"]
+
+        # Current behavior: last value wins (override)
+        assert final_ignore == ["*.log"]
+        assert "*.tmp" not in final_ignore
+
+        # Test package creation - this should work since it's proper array format
+        result3 = runner.invoke(
+            main,
+            [
+                "create",
+                "TestPkg",
+                "--dry-run",
+            ],
+        )
+
+        assert result3.exit_code == 0
+        assert '"*.log"' in result3.output
+
+    def test_config_command_array_then_string_ignore_merge(self, isolated_config):
+        """Test config set: array first, then string - should merge into array"""
+        runner = CliRunner()
+
+        # First execution: set ignore to array
+        result1 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore=["*.tmp", "*.log"]',
+            ],
+        )
+        assert result1.exit_code == 0
+
+        # Second execution: add string ignore - should merge
+        result2 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore="*.backup"',
+            ],
+        )
+        assert result2.exit_code == 0
+
+        # Verify final config - should merge into array
+        config_data = load_config()
+        final_ignore = config_data["default"]["Git"]["ignore"]
+
+        # Should merge: existing array + new string
+        assert isinstance(final_ignore, list)
+        assert "*.tmp" in final_ignore
+        assert "*.log" in final_ignore
+        assert "*.backup" in final_ignore
+        assert len(final_ignore) == 3
+
+        # Test package creation - should work since result is array
+        result3 = runner.invoke(
+            main,
+            [
+                "create",
+                "TestPkg",
+                "--dry-run",
+            ],
+        )
+
+        assert result3.exit_code == 0
+        assert '"*.tmp"' in result3.output
+        assert '"*.log"' in result3.output
+        assert '"*.backup"' in result3.output
+
+    def test_config_command_string_then_array_ignore_merge(self, isolated_config):
+        """Test config set: string first, then array - should merge into array"""
+        runner = CliRunner()
+
+        # First execution: set ignore to string
+        result1 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore="*.tmp"',
+            ],
+        )
+        assert result1.exit_code == 0
+
+        # Second execution: add array ignore - should merge
+        result2 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore=["*.log", "*.backup"]',
+            ],
+        )
+        assert result2.exit_code == 0
+
+        # Verify final config - should merge into array
+        config_data = load_config()
+        final_ignore = config_data["default"]["Git"]["ignore"]
+
+        # Should merge: existing string + new array
+        assert isinstance(final_ignore, list)
+        assert "*.tmp" in final_ignore
+        assert "*.log" in final_ignore
+        assert "*.backup" in final_ignore
+        assert len(final_ignore) == 3
+
+        # Test package creation - should work since result is array
+        result3 = runner.invoke(
+            main,
+            [
+                "create",
+                "TestPkg",
+                "--dry-run",
+            ],
+        )
+
+        assert result3.exit_code == 0
+        assert '"*.tmp"' in result3.output
+        assert '"*.log"' in result3.output
+        assert '"*.backup"' in result3.output
+
+    def test_config_command_string_then_string_ignore_merge(self, isolated_config):
+        """Test config set: string first, then string - should merge into array"""
+        runner = CliRunner()
+
+        # First execution: set ignore to string
+        result1 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore="*.tmp"',
+            ],
+        )
+        assert result1.exit_code == 0
+
+        # Second execution: add another string ignore - should merge
+        result2 = runner.invoke(
+            main,
+            [
+                "config",
+                "set",
+                "--git",
+                'ignore="*.log"',
+            ],
+        )
+        assert result2.exit_code == 0
+
+        # Verify final config - should merge into array
+        config_data = load_config()
+        final_ignore = config_data["default"]["Git"]["ignore"]
+
+        # Should merge: string + string = array
+        assert isinstance(final_ignore, list)
+        assert "*.tmp" in final_ignore
+        assert "*.log" in final_ignore
+        assert len(final_ignore) == 2
+
+        # Test package creation - should work since result is array
+        result3 = runner.invoke(
+            main,
+            [
+                "create",
+                "TestPkg",
+                "--dry-run",
+            ],
+        )
+
+        assert result3.exit_code == 0
+        assert '"*.tmp"' in result3.output
+        assert '"*.log"' in result3.output
