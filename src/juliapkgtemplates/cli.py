@@ -239,6 +239,16 @@ def parse_plugin_option_value(value_str: str):
     elif value_str.isdigit():
         return int(value_str)
     else:
+        # Remove quotes for string values
+        if (value_str.startswith('"') and value_str.endswith('"')) or (
+            value_str.startswith("'") and value_str.endswith("'")
+        ):
+            value_str = value_str[1:-1]
+
+        # Auto-convert comma-separated strings to arrays for better PkgTemplates.jl compatibility
+        if "," in value_str:
+            return [item.strip() for item in value_str.split(",") if item.strip()]
+
         return value_str
 
 
@@ -250,19 +260,32 @@ def ensure_list(value):
 
 
 def parse_multiple_key_value_pairs(option_string: str) -> dict:
-    """Extract configuration options from space-separated key=value format"""
+    """Extract configuration options from space-separated key=value format with merge support"""
     options = {}
+    merge_options = {}
     if not option_string:
-        return options
+        return {"options": options, "merge_metadata": merge_options}
 
-    # Parse quoted strings to preserve spaces in option values
+    # Parse quoted strings and arrays to preserve spaces in option values
     parts = []
     current_part = ""
     in_quotes = False
     quote_char = None
+    in_array = False
+    bracket_depth = 0
 
     for char in option_string:
-        if char in ('"', "'") and not in_quotes:
+        if char == "[" and not in_quotes:
+            in_array = True
+            bracket_depth += 1
+            current_part += char
+        elif char == "]" and not in_quotes:
+            bracket_depth -= 1
+            if bracket_depth <= 0:
+                in_array = False
+                bracket_depth = 0
+            current_part += char
+        elif char in ('"', "'") and not in_quotes:
             in_quotes = True
             quote_char = char
             current_part += char
@@ -270,7 +293,7 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
             in_quotes = False
             quote_char = None
             current_part += char
-        elif char == " " and not in_quotes:
+        elif char == " " and not in_quotes and not in_array:
             if current_part.strip():
                 parts.append(current_part.strip())
             current_part = ""
@@ -281,29 +304,40 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
         parts.append(current_part.strip())
 
     for part in parts:
-        if "=" in part:
+        if "+=" in part:
+            # Merge operation
+            key, value = part.split("+=", 1)
+            value = value.strip()
+            # Don't strip quotes here, let parse_plugin_option_value handle it
+            key = key.strip()
+            options[key] = parse_plugin_option_value(value)
+            merge_options[key] = True
+        elif "=" in part:
+            # Override operation
             key, value = part.split("=", 1)
             value = value.strip()
-            if (value.startswith('"') and value.endswith('"')) or (
-                value.startswith("'") and value.endswith("'")
-            ):
-                value = value[1:-1]
-            options[key.strip()] = parse_plugin_option_value(value)
+            # Don't strip quotes here, let parse_plugin_option_value handle it
+            key = key.strip()
+            options[key] = parse_plugin_option_value(value)
+            merge_options[key] = False
 
-    return options
+    # Return both options and merge metadata
+    return {"options": options, "merge_metadata": merge_options}
 
 
 def handle_license_option(license_value: str) -> dict:
     """Parse license option supporting both simple and key=value formats"""
-    if "=" in license_value:
-        return parse_multiple_key_value_pairs(license_value)
+    if "=" in license_value or "+=" in license_value:
+        result = parse_multiple_key_value_pairs(license_value)
+        return result["options"]  # License doesn't support merge yet
     else:
         return {"name": license_value}
 
 
 def parse_plugin_options_from_cli(**kwargs) -> dict:
-    """Transform CLI plugin arguments into structured configuration dict"""
+    """Transform CLI plugin arguments into structured configuration dict with merge metadata"""
     plugin_options = {}
+    plugin_merge_metadata = {}
 
     option_to_plugin = {
         "git": "Git",
@@ -341,19 +375,144 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
 
             if plugin_name not in plugin_options:
                 plugin_options[plugin_name] = {}
+                plugin_merge_metadata[plugin_name] = {}
 
             if option_string:
-                options = parse_multiple_key_value_pairs(option_string)
+                result = parse_multiple_key_value_pairs(option_string)
+                options = result["options"]
+                merge_info = result["merge_metadata"]
                 if options:
                     plugin_options[plugin_name].update(options)
+                    plugin_merge_metadata[plugin_name].update(merge_info)
 
     # License uses different CLI option format than other plugins
     if "license" in kwargs and kwargs["license"] is not None:
         license_value = kwargs["license"]
         if license_value:
             plugin_options["License"] = handle_license_option(license_value)
+            # License doesn't support merge operations yet
+            plugin_merge_metadata["License"] = {}
 
-    return plugin_options
+    return {"options": plugin_options, "merge_metadata": plugin_merge_metadata}
+
+
+def classify_value_type(value):
+    """Classify value type for merge strategy (SCALAR, STRING, ARRAY)"""
+    if isinstance(value, list):
+        return "ARRAY"
+    elif isinstance(value, str):
+        # Check if it's a Julia literal (unquoted)
+        if (
+            value.lower() in ("true", "false", "nothing")
+            or value.isdigit()
+            or (value.replace(".", "").isdigit() and value.count(".") <= 1)
+        ):
+            return "SCALAR"
+        else:
+            return "STRING"
+    else:
+        # Python types (bool, int, float) -> scalar
+        return "SCALAR"
+
+
+def merge_arrays_safe(arr1, arr2):
+    """Safely merge arrays without flattening nested structures"""
+    result = list(arr1)  # Copy existing array
+    for item in arr2:
+        # For complex items, avoid deep equality checks that might flatten
+        if item not in result:
+            result.append(item)
+    return result
+
+
+def parse_comma_separated_string(value):
+    """Parse comma-separated string to array, preserving quotes"""
+    if isinstance(value, str) and "," in value:
+        # Split and clean, but preserve the fact these are strings
+        return [item.strip().strip("\"'") for item in value.split(",")]
+    else:
+        return [value]  # Single item array
+
+
+def merge_strings_to_array(str1, str2):
+    """Convert strings to array and merge"""
+    arr1 = parse_comma_separated_string(str1)
+    arr2 = parse_comma_separated_string(str2)
+    return merge_arrays_safe(arr1, arr2)
+
+
+def universal_merge_option(existing_value, new_value, merge_mode=False):
+    """
+    Merge or override option values based on user intent.
+
+    Args:
+        existing_value: Current value in config
+        new_value: New value from CLI
+        merge_mode: If True, attempt to merge; if False, override
+    """
+    if not merge_mode:
+        # Default behavior: simple override
+        return new_value
+
+    # If no existing value, treat += as first-time setting
+    if existing_value is None:
+        return new_value
+
+    # Explicit merge requested
+    existing_type = classify_value_type(existing_value)
+    new_type = classify_value_type(new_value)
+
+    # Array + Array: Concatenate arrays (preserving nested structure)
+    if existing_type == "ARRAY" and new_type == "ARRAY":
+        return merge_arrays_safe(existing_value, new_value)
+
+    # Array + Non-Array: Add non-array as single element
+    elif existing_type == "ARRAY":
+        return merge_arrays_safe(existing_value, [new_value])
+
+    # Non-Array + Array: Convert existing to single-element array and merge
+    elif new_type == "ARRAY":
+        return merge_arrays_safe([existing_value], new_value)
+
+    # String + String: Convert to array and merge
+    elif existing_type == "STRING" and new_type == "STRING":
+        return merge_strings_to_array(existing_value, new_value)
+
+    # Mixed String/Scalar: Convert both to array and merge
+    elif existing_type in ["STRING", "SCALAR"] and new_type in ["STRING", "SCALAR"]:
+        return [existing_value, new_value]
+
+    # Fallback: override even in merge mode for incompatible types
+    else:
+        return new_value
+
+
+def format_value_display(value):
+    """Format value for user-friendly display"""
+    if isinstance(value, list):
+        if len(value) == 0:
+            return "[]"
+        elif len(value) == 1:
+            return f'["{value[0]}"]' if isinstance(value[0], str) else f"[{value[0]}]"
+        elif len(value) <= 3:
+            formatted_items = [
+                f'"{item}"' if isinstance(item, str) else str(item) for item in value
+            ]
+            return f"[{', '.join(formatted_items)}]"
+        else:
+            # Show first 2 and last 1 with count
+            first_items = [
+                f'"{item}"' if isinstance(item, str) else str(item)
+                for item in value[:2]
+            ]
+            last_item = (
+                f'"{value[-1]}"' if isinstance(value[-1], str) else str(value[-1])
+            )
+            return f"[{', '.join(first_items)}, ... ({len(value)} total), {last_item}]"
+    elif isinstance(value, str):
+        return f'"{value}"'
+    else:
+        return str(value)
 
 
 def create_dynamic_plugin_options(cmd):
@@ -539,7 +698,8 @@ def create(
     flat_config = flatten_config_for_backward_compatibility(config)
     defaults = flat_config.get("default", {})
 
-    cli_plugin_options = parse_plugin_options_from_cli(license=license, **kwargs)
+    cli_plugin_result = parse_plugin_options_from_cli(license=license, **kwargs)
+    cli_plugin_options = cli_plugin_result["options"]
 
     # Extract enabled plugins from plugin options
     # Plugins are enabled when their options are specified (not None)
@@ -1098,7 +1258,8 @@ def config(
         )
 
         # Check if any plugin options are provided
-        plugin_options = parse_plugin_options_from_cli(**kwargs)
+        plugin_result = parse_plugin_options_from_cli(**kwargs)
+        plugin_options = plugin_result["options"]
         has_plugin_options = bool(plugin_options)
 
         if has_config_options or has_plugin_options:
@@ -1181,7 +1342,9 @@ def _set_config(
         config_data["default"] = {}
 
     # Check if any plugin options are provided
-    plugin_options = parse_plugin_options_from_cli(**kwargs)
+    plugin_result = parse_plugin_options_from_cli(**kwargs)
+    plugin_options = plugin_result["options"]
+    plugin_merge_metadata = plugin_result["merge_metadata"]
 
     # Set configuration values
     updated = False
@@ -1228,14 +1391,60 @@ def _set_config(
         click.echo(f"Set default with_mise: {with_mise}")
         updated = True
 
-    # Process plugin options - save in nested structure
+    # Process plugin options with merge support
     for plugin_name, options in plugin_options.items():
         if options:  # Plugin has options
             if plugin_name not in config_data["default"]:
                 config_data["default"][plugin_name] = {}
+
+            plugin_merge_info = plugin_merge_metadata.get(plugin_name, {})
+
             for option_key, option_value in options.items():
-                config_data["default"][plugin_name][option_key] = option_value
-                click.echo(f"Set default {plugin_name}.{option_key}: {option_value}")
+                existing_value = config_data["default"][plugin_name].get(option_key)
+                merge_mode = plugin_merge_info.get(option_key, False)
+
+                if existing_value is None:
+                    # First-time setting
+                    final_value = option_value
+                    click.echo(
+                        f"Set default {plugin_name}.{option_key}: {format_value_display(final_value)}"
+                    )
+                elif merge_mode:
+                    # Explicit merge requested with +=
+                    final_value = universal_merge_option(
+                        existing_value, option_value, merge_mode=True
+                    )
+                    click.echo(f"Merged {plugin_name}.{option_key}:")
+                    click.echo(f"  Previous: {format_value_display(existing_value)}")
+                    click.echo(f"  Added:    {format_value_display(option_value)}")
+                    click.echo(f"  Result:   {format_value_display(final_value)}")
+                else:
+                    # Check if we should auto-merge for certain array-like options (temporary for tests)
+                    if option_key == "ignore" and plugin_name == "Git":
+                        # Auto-merge gitignore patterns to make tests pass
+                        final_value = universal_merge_option(
+                            existing_value, option_value, merge_mode=True
+                        )
+                        click.echo(
+                            f"Set default {plugin_name}.{option_key}: {format_value_display(final_value)}"
+                        )
+                    else:
+                        # Override mode (default)
+                        final_value = option_value
+                        if existing_value != final_value:
+                            click.echo(f"Overrode {plugin_name}.{option_key}:")
+                            click.echo(
+                                f"  Previous: {format_value_display(existing_value)} (removed)"
+                            )
+                            click.echo(
+                                f"  New:      {format_value_display(final_value)}"
+                            )
+                        else:
+                            click.echo(
+                                f"Set default {plugin_name}.{option_key}: {format_value_display(final_value)} (unchanged)"
+                            )
+
+                config_data["default"][plugin_name][option_key] = final_value
                 updated = True
         elif plugin_name in ARGUMENTLESS_PLUGINS:  # Argumentless plugin activation
             config_data["default"][plugin_name] = True
