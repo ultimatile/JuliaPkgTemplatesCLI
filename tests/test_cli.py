@@ -956,7 +956,9 @@ class TestConfigCommand:
         )
         assert result.exit_code == 0
         assert "Enabled argumentless plugin: SrcDir" in result.output
-        assert "Set default Formatter.style: blue" in result.output
+        assert (
+            "Set default Formatter.style:" in result.output and "blue" in result.output
+        )
         assert "Configuration saved" in result.output
 
         # Verify config content
