@@ -325,13 +325,20 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
     return {"options": options, "merge_metadata": merge_options}
 
 
-def handle_license_option(license_value: str) -> dict:
+def handle_license_option(license_value: Optional[str]) -> dict:
     """Parse license option supporting both simple and key=value formats"""
+    if license_value is None:
+        return {}
+
+    if license_value == "":
+        # Explicit empty value enables License plugin with default constructor
+        return {}
+
     if "=" in license_value or "+=" in license_value:
         result = parse_multiple_key_value_pairs(license_value)
         return result["options"]  # License doesn't support merge yet
-    else:
-        return {"name": license_value}
+
+    return {"name": license_value}
 
 
 def parse_plugin_options_from_cli(**kwargs) -> dict:
@@ -388,10 +395,9 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
     # License uses different CLI option format than other plugins
     if "license" in kwargs and kwargs["license"] is not None:
         license_value = kwargs["license"]
-        if license_value:
-            plugin_options["License"] = handle_license_option(license_value)
-            # License doesn't support merge operations yet
-            plugin_merge_metadata["License"] = {}
+        plugin_options["License"] = handle_license_option(license_value)
+        # License doesn't support merge operations yet
+        plugin_merge_metadata["License"] = {}
 
     return {"options": plugin_options, "merge_metadata": plugin_merge_metadata}
 
@@ -605,6 +611,10 @@ def main():
 )
 @click.option(
     "--license",
+    is_flag=False,
+    type=str,
+    flag_value="",
+    default=None,
     help=get_help_with_fallback(
         "License type (common: MIT, Apache, BSD2, BSD3, GPL2, GPL3, MPL, ISC, LGPL2, LGPL3, AGPL3, EUPL; or any PkgTemplates.jl license identifier)",
         "license_type",

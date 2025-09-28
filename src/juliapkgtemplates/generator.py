@@ -221,9 +221,7 @@ class JuliaPackageGenerator:
         """Generic plugin builder that handles any plugin with special License processing"""
         if plugin_name == "License":
             # License requires special mapping logic for user-friendly aliases
-            license_plugin_options = (
-                {"License": plugin_options} if plugin_options else None
-            )
+            license_plugin_options = {"License": plugin_options or {}}
             return self._build_license_plugin_special(
                 license_type, license_plugin_options
             )
@@ -262,6 +260,8 @@ class JuliaPackageGenerator:
     ) -> Optional[str]:
         """Create License plugin with full support for all License plugin parameters"""
         license_options = {}
+        license_config = (plugin_options or {}).get("License")
+        license_explicitly_enabled = license_config is not None
 
         # Support legacy license_type parameter for backward compatibility
         if license_type:
@@ -269,15 +269,16 @@ class JuliaPackageGenerator:
             license_options["name"] = mapped_license
 
         # Plugin options take precedence to allow override of legacy parameter
-        if plugin_options and "License" in plugin_options:
-            options = plugin_options["License"]
-            for key, value in options.items():
+        if license_explicitly_enabled and license_config is not None:
+            for key, value in license_config.items():
                 if key == "name":
                     license_options["name"] = self._map_license(value)
                 else:
                     license_options[key] = value
 
         if not license_options:
+            if license_explicitly_enabled:
+                return "License()"
             return None
 
         option_strings = []
