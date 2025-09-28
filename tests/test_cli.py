@@ -597,6 +597,24 @@ class TestCreateCommand:
                 assert config.plugin_options["License"]["name"] == "MIT"
                 assert config.plugin_options["License"]["path"] == "./my-license.txt"
 
+    def test_dry_run_with_license_flag_only(self, cli_runner, temp_dir):
+        """Dry-run should allow --license without value and emit License() plugin"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--dry-run",
+                    "--license",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "License()" in result.output
+        assert "License(;" not in result.output
+
     def test_create_license_plugin_generation_simple_format(self, temp_dir):
         """Test that simple license format generates correct License plugin in Julia code"""
         from juliapkgtemplates.generator import JuliaPackageGenerator, PackageConfig
@@ -759,99 +777,147 @@ class TestConfigCommand:
 
     def test_config_set_author(self, cli_runner, isolated_config):
         """Test config set command sets author"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--author", "New Author"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--author", "New Author"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default author: New Author" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default author: New Author" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["author"] == "New Author"
 
     def test_config_set_user(self, cli_runner, isolated_config):
         """Test config set command sets user"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--user", "newuser"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--user", "newuser"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default user: newuser" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default user: newuser" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["user"] == "newuser"
 
     def test_config_set_mail(self, cli_runner, isolated_config):
         """Test config set command sets mail"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--mail", "new@example.com"])
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "set",
+                "--config-file",
+                str(isolated_config),
+                "--mail",
+                "new@example.com",
+            ],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default mail: new@example.com" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default mail: new@example.com" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["mail"] == "new@example.com"
 
     def test_config_set_mise_filename_base(self, cli_runner, isolated_config):
         """Test config set command sets mise filename base"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(
-                config_cmd, ["set", "--mise-filename-base", "mise"]
-            )
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "set",
+                "--config-file",
+                str(isolated_config),
+                "--mise-filename-base",
+                "mise",
+            ],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default mise_filename_base: mise" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default mise_filename_base: mise" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["mise_filename_base"] == "mise"
 
     def test_config_set_with_mise(self, cli_runner, isolated_config):
         """Test config set command sets with_mise option"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--with-mise"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--with-mise"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default with_mise: True" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default with_mise: True" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["with_mise"] is True
 
     def test_config_set_no_mise(self, cli_runner, isolated_config):
         """Test config set command sets no_mise option"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--no-mise"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--no-mise"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default with_mise: False" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default with_mise: False" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["with_mise"] is False
 
     def test_config_show(self, cli_runner, isolated_config):
         """Test config show command displays configuration"""
-        mock_config = {"default": {"author": "Test Author", "license_type": "MIT"}}
-        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
-            result = cli_runner.invoke(config_cmd, ["show"])
+        isolated_config.write_text(
+            '[default]\nauthor = "Test Author"\nlicense_type = "MIT"\n'
+        )
 
-            assert result.exit_code == 0
-            assert "Current configuration:" in result.output
-            assert "author: 'Test Author'" in result.output
-            assert "license_type: 'MIT'" in result.output
+        result = cli_runner.invoke(
+            config_cmd, ["show", "--config-file", str(isolated_config)]
+        )
+
+        assert result.exit_code == 0
+        assert "Current configuration:" in result.output
+        assert "author: 'Test Author'" in result.output
+        assert "license_type: 'MIT'" in result.output
 
     def test_config_bare_command_shows_config(self, cli_runner, isolated_config):
         """Test bare config command shows configuration (alias for show)"""
-        mock_config = {"default": {"author": "Test Author", "license_type": "MIT"}}
-        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
-            result = cli_runner.invoke(config_cmd, [])
+        isolated_config.write_text(
+            '[default]\nauthor = "Test Author"\nlicense_type = "MIT"\n'
+        )
 
-            assert result.exit_code == 0
-            assert "Current configuration:" in result.output
-            assert "author: 'Test Author'" in result.output
-            assert "license_type: 'MIT'" in result.output
+        result = cli_runner.invoke(config_cmd, ["--config-file", str(isolated_config)])
+
+        assert result.exit_code == 0
+        assert "Current configuration:" in result.output
+        assert "author: 'Test Author'" in result.output
+        assert "license_type: 'MIT'" in result.output
 
     def test_config_with_options_sets_config(self, cli_runner, isolated_config):
         """Test config command with options behaves like config set"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["--author", "New Author"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["--config-file", str(isolated_config), "--author", "New Author"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default author: New Author" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default author: New Author" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["author"] == "New Author"
 
     def test_config_with_plugin_options_sets_config(self, cli_runner, isolated_config):
         """Test config command with plugin options behaves like config set"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["--git", "ssh=true"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["--config-file", str(isolated_config), "--git", "ssh=true"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default Git.ssh: True" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default Git.ssh: True" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["Git"]["ssh"] is True
 
     def test_config_set_with_custom_config_file(self, cli_runner, temp_dir):
         """Test config set command with custom config file"""
@@ -923,7 +989,10 @@ class TestConfigCommand:
 
     def test_config_set_argumentless_plugin(self, cli_runner, isolated_config):
         """Test setting argumentless plugin with flag only"""
-        result = cli_runner.invoke(config_cmd, ["set", "--srcdir"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--srcdir"],
+        )
         assert result.exit_code == 0
         assert "Enabled argumentless plugin: SrcDir" in result.output
         assert "Configuration saved" in result.output
@@ -936,7 +1005,16 @@ class TestConfigCommand:
         self, cli_runner, isolated_config
     ):
         """Test setting multiple argumentless plugins"""
-        result = cli_runner.invoke(config_cmd, ["set", "--srcdir", "--gitlabci"])
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "set",
+                "--config-file",
+                str(isolated_config),
+                "--srcdir",
+                "--gitlabci",
+            ],
+        )
         assert result.exit_code == 0
         assert "Enabled argumentless plugin: SrcDir" in result.output
         assert "Enabled argumentless plugin: GitLabCI" in result.output
@@ -952,7 +1030,15 @@ class TestConfigCommand:
     ):
         """Test setting both argumentless and argument plugins together"""
         result = cli_runner.invoke(
-            config_cmd, ["set", "--srcdir", "--formatter", "style=blue"]
+            config_cmd,
+            [
+                "set",
+                "--config-file",
+                str(isolated_config),
+                "--srcdir",
+                "--formatter",
+                "style=blue",
+            ],
         )
         assert result.exit_code == 0
         assert "Enabled argumentless plugin: SrcDir" in result.output
@@ -972,7 +1058,10 @@ class TestConfigCommand:
     ):
         """Test create command loads argumentless plugin from config"""
         # Set up config with argumentless plugin
-        cli_runner.invoke(config_cmd, ["set", "--srcdir"])
+        cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--srcdir"],
+        )
 
         # Mock generator
         mock_instance = Mock()
