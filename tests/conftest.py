@@ -142,48 +142,21 @@ def test_git_repo(isolated_dir: Path) -> Path:
 
 
 @pytest.fixture
-def isolated_config(temp_config_dir):
-    """Isolate config operations to prevent overwriting user config files"""
-    import os
-    from unittest.mock import patch
-
-    # Mock both get_config_file_path and XDG_CONFIG_HOME to use temp directory
-    with patch.dict(os.environ, {"XDG_CONFIG_HOME": str(temp_config_dir)}, clear=False):
-        with patch(
-            "juliapkgtemplates.cli.get_config_file_path"
-        ) as mock_get_config_path:
-            config_file = temp_config_dir / "jtc" / "config.toml"
-            # Ensure the directory exists
-            config_file.parent.mkdir(parents=True, exist_ok=True)
-            mock_get_config_path.return_value = config_file
-            yield config_file
+def isolated_config(cli_runner):
+    """Provide an isolated working directory for config commands"""
+    with cli_runner.isolated_filesystem():
+        yield Path("config.toml")
 
 
 @pytest.fixture(autouse=True)
-def backup_user_config():
-    """Automatically backup and restore user config file during tests"""
-    import shutil
-    from juliapkgtemplates.cli import get_config_file_path
-
-    real_config_path = get_config_file_path()
-    backup_path = None
-
+def backup_user_config(monkeypatch, tmp_path_factory):
+    """Redirect config directory to a temporary location during tests"""
+    temp_config_home = tmp_path_factory.mktemp("jtc_config_home")
+    monkeypatch.setenv("XDG_CONFIG_HOME", str(temp_config_home))
     try:
-        # Backup existing config if it exists
-        if real_config_path.exists():
-            backup_path = real_config_path.with_suffix(".toml.test_backup")
-            shutil.copy2(real_config_path, backup_path)
-
         yield
-
     finally:
-        # Restore backup if it exists
-        if backup_path is not None and backup_path.exists():
-            shutil.copy2(backup_path, real_config_path)
-            backup_path.unlink()
-        elif real_config_path.exists():
-            # Remove any test-created config file
-            real_config_path.unlink()
+        pass
 
 
 @pytest.fixture(autouse=True)

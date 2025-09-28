@@ -247,6 +247,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 "ssh=true ssh=false manifest=true",  # Conflicting ssh values
             ],
@@ -271,6 +273,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 "manifest=",  # Empty value
                 "--tests",
@@ -296,6 +300,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 "ssh=true manifest=false",
                 "--git",
@@ -322,6 +328,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 "ssh=true manifest=false",
                 "--git",
@@ -353,6 +361,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.tmp"',
             ],
@@ -371,6 +381,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.log"',
             ],
@@ -413,6 +425,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore=["*.tmp"]',
             ],
@@ -430,6 +444,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore=["*.log"]',
             ],
@@ -470,6 +486,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.tmp"',
             ],
@@ -482,6 +500,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore+="*.log"',
             ],
@@ -509,6 +529,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore=["*.tmp", "*.log"]',
             ],
@@ -521,6 +543,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore+=["*.bak", "*.swp"]',
             ],
@@ -548,6 +572,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.tmp" ssh=true',
             ],
@@ -560,6 +586,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore+="*.log" ssh=false',  # Merge ignore, override ssh
             ],
@@ -588,6 +616,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore+="*.tmp"',
             ],
@@ -607,6 +637,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore+="*.log"',
             ],
@@ -632,6 +664,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore+=["*.tmp", "*.log"]',
             ],
@@ -664,6 +698,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--formatter",
                 "style=blue",
             ],
@@ -676,6 +712,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--formatter",
                 "style+=red",
             ],
@@ -700,6 +738,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 "ssh=true",
             ],
@@ -712,6 +752,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ssh+="custom"',
             ],
@@ -736,6 +778,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.tmp"',
             ],
@@ -748,6 +792,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore+="*.log,*.bak,*.swp"',
             ],
@@ -775,6 +821,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore=["*.tmp", "*.log"]',
             ],
@@ -787,6 +835,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.backup"',
             ],
@@ -829,6 +879,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.tmp"',
             ],
@@ -841,6 +893,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore=["*.log", "*.backup"]',
             ],
@@ -883,6 +937,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.tmp"',
             ],
@@ -895,6 +951,8 @@ class TestCLICommands:
             [
                 "config",
                 "set",
+                "--config-file",
+                str(isolated_config),
                 "--git",
                 'ignore="*.log"',
             ],
