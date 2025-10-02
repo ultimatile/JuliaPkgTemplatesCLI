@@ -284,7 +284,9 @@ class TestCreateCommand:
 
                 # Check that config values were used
                 call_args = mock_instance.create_package.call_args
-                assert call_args[0][1] == "Config Author"  # author (position 1)
+                assert call_args[0][1] == [
+                    "Config Author"
+                ]  # author (position 1) - now a list
                 assert call_args[0][2] == "configuser"  # user (position 2)
                 assert call_args[0][3] == "config@example.com"  # mail (position 3)
                 # License is now handled as plugin option, not license_type field
@@ -426,7 +428,7 @@ class TestCreateCommand:
                 call_args = mock_instance.generate_julia_code.call_args
 
                 # Check that config values were used
-                assert call_args[0][1] == "Config Author"  # author
+                assert call_args[0][1] == ["Config Author"]  # author - now a list
                 assert call_args[0][2] == "configuser"  # user
                 assert call_args[0][3] == "config@example.com"  # mail
                 # output_dir is position 4, PackageConfig is position 5
@@ -475,7 +477,9 @@ class TestCreateCommand:
 
                 # Verify that CLI values override config values
                 call_args = mock_instance.generate_julia_code.call_args
-                assert call_args[0][1] == "CLI Author"  # author overridden
+                assert call_args[0][1] == [
+                    "CLI Author"
+                ]  # author overridden - now a list
 
                 config = call_args[0][5]
                 assert (
@@ -592,6 +596,24 @@ class TestCreateCommand:
                 assert "License" in config.plugin_options
                 assert config.plugin_options["License"]["name"] == "MIT"
                 assert config.plugin_options["License"]["path"] == "./my-license.txt"
+
+    def test_dry_run_with_license_flag_only(self, cli_runner, temp_dir):
+        """Dry-run should allow --license without value and emit License() plugin"""
+        with patch("juliapkgtemplates.cli.load_config", return_value={}):
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--dry-run",
+                    "--license",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+        assert result.exit_code == 0
+        assert "License()" in result.output
+        assert "License(;" not in result.output
 
     def test_create_license_plugin_generation_simple_format(self, temp_dir):
         """Test that simple license format generates correct License plugin in Julia code"""
@@ -746,7 +768,7 @@ class TestCreateCommand:
             call_args = mock_instance.create_package.call_args
             author_arg = call_args[0][1]  # author argument (position 1)
             user_arg = call_args[0][2]  # user argument (position 2)
-            assert author_arg == "Custom Author"
+            assert author_arg == ["Custom Author"]
             assert user_arg == "custom-user"
 
 
@@ -755,99 +777,147 @@ class TestConfigCommand:
 
     def test_config_set_author(self, cli_runner, isolated_config):
         """Test config set command sets author"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--author", "New Author"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--author", "New Author"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default author: New Author" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default author: New Author" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["author"] == "New Author"
 
     def test_config_set_user(self, cli_runner, isolated_config):
         """Test config set command sets user"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--user", "newuser"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--user", "newuser"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default user: newuser" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default user: newuser" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["user"] == "newuser"
 
     def test_config_set_mail(self, cli_runner, isolated_config):
         """Test config set command sets mail"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--mail", "new@example.com"])
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "set",
+                "--config-file",
+                str(isolated_config),
+                "--mail",
+                "new@example.com",
+            ],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default mail: new@example.com" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default mail: new@example.com" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["mail"] == "new@example.com"
 
     def test_config_set_mise_filename_base(self, cli_runner, isolated_config):
         """Test config set command sets mise filename base"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(
-                config_cmd, ["set", "--mise-filename-base", "mise"]
-            )
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "set",
+                "--config-file",
+                str(isolated_config),
+                "--mise-filename-base",
+                "mise",
+            ],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default mise_filename_base: mise" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default mise_filename_base: mise" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["mise_filename_base"] == "mise"
 
     def test_config_set_with_mise(self, cli_runner, isolated_config):
         """Test config set command sets with_mise option"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--with-mise"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--with-mise"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default with_mise: True" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default with_mise: True" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["with_mise"] is True
 
     def test_config_set_no_mise(self, cli_runner, isolated_config):
         """Test config set command sets no_mise option"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["set", "--no-mise"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--no-mise"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default with_mise: False" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default with_mise: False" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["with_mise"] is False
 
     def test_config_show(self, cli_runner, isolated_config):
         """Test config show command displays configuration"""
-        mock_config = {"default": {"author": "Test Author", "license_type": "MIT"}}
-        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
-            result = cli_runner.invoke(config_cmd, ["show"])
+        isolated_config.write_text(
+            '[default]\nauthor = "Test Author"\nlicense_type = "MIT"\n'
+        )
 
-            assert result.exit_code == 0
-            assert "Current configuration:" in result.output
-            assert "author: 'Test Author'" in result.output
-            assert "license_type: 'MIT'" in result.output
+        result = cli_runner.invoke(
+            config_cmd, ["show", "--config-file", str(isolated_config)]
+        )
+
+        assert result.exit_code == 0
+        assert "Current configuration:" in result.output
+        assert "author: 'Test Author'" in result.output
+        assert "license_type: 'MIT'" in result.output
 
     def test_config_bare_command_shows_config(self, cli_runner, isolated_config):
         """Test bare config command shows configuration (alias for show)"""
-        mock_config = {"default": {"author": "Test Author", "license_type": "MIT"}}
-        with patch("juliapkgtemplates.cli.load_config", return_value=mock_config):
-            result = cli_runner.invoke(config_cmd, [])
+        isolated_config.write_text(
+            '[default]\nauthor = "Test Author"\nlicense_type = "MIT"\n'
+        )
 
-            assert result.exit_code == 0
-            assert "Current configuration:" in result.output
-            assert "author: 'Test Author'" in result.output
-            assert "license_type: 'MIT'" in result.output
+        result = cli_runner.invoke(config_cmd, ["--config-file", str(isolated_config)])
+
+        assert result.exit_code == 0
+        assert "Current configuration:" in result.output
+        assert "author: 'Test Author'" in result.output
+        assert "license_type: 'MIT'" in result.output
 
     def test_config_with_options_sets_config(self, cli_runner, isolated_config):
         """Test config command with options behaves like config set"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["--author", "New Author"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["--config-file", str(isolated_config), "--author", "New Author"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default author: New Author" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default author: New Author" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["author"] == "New Author"
 
     def test_config_with_plugin_options_sets_config(self, cli_runner, isolated_config):
         """Test config command with plugin options behaves like config set"""
-        with patch("juliapkgtemplates.cli.load_config", return_value={}):
-            result = cli_runner.invoke(config_cmd, ["--git", "ssh=true"])
+        result = cli_runner.invoke(
+            config_cmd,
+            ["--config-file", str(isolated_config), "--git", "ssh=true"],
+        )
 
-            assert result.exit_code == 0
-            assert "Set default Git.ssh: True" in result.output
-            assert "Configuration saved" in result.output
+        assert result.exit_code == 0
+        assert "Set default Git.ssh: True" in result.output
+        assert "Configuration saved" in result.output
+        config = load_config()
+        assert config["default"]["Git"]["ssh"] is True
 
     def test_config_set_with_custom_config_file(self, cli_runner, temp_dir):
         """Test config set command with custom config file"""
@@ -916,6 +986,304 @@ class TestConfigCommand:
         assert custom_config_file.exists()
         content = custom_config_file.read_text()
         assert 'author = "Custom Author"' in content
+
+    def test_config_set_argumentless_plugin(self, cli_runner, isolated_config):
+        """Test setting argumentless plugin with flag only"""
+        result = cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--srcdir"],
+        )
+        assert result.exit_code == 0
+        assert "Enabled argumentless plugin: SrcDir" in result.output
+        assert "Configuration saved" in result.output
+
+        # Verify config content
+        config = load_config()
+        assert config["default"]["SrcDir"] is True
+
+    def test_config_set_multiple_argumentless_plugins(
+        self, cli_runner, isolated_config
+    ):
+        """Test setting multiple argumentless plugins"""
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "set",
+                "--config-file",
+                str(isolated_config),
+                "--srcdir",
+                "--gitlabci",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Enabled argumentless plugin: SrcDir" in result.output
+        assert "Enabled argumentless plugin: GitLabCI" in result.output
+        assert "Configuration saved" in result.output
+
+        # Verify config content
+        config = load_config()
+        assert config["default"]["SrcDir"] is True
+        assert config["default"]["GitLabCI"] is True
+
+    def test_config_set_argumentless_and_argument_plugins(
+        self, cli_runner, isolated_config
+    ):
+        """Test setting both argumentless and argument plugins together"""
+        result = cli_runner.invoke(
+            config_cmd,
+            [
+                "set",
+                "--config-file",
+                str(isolated_config),
+                "--srcdir",
+                "--formatter",
+                "style=blue",
+            ],
+        )
+        assert result.exit_code == 0
+        assert "Enabled argumentless plugin: SrcDir" in result.output
+        assert (
+            "Set default Formatter.style:" in result.output and "blue" in result.output
+        )
+        assert "Configuration saved" in result.output
+
+        # Verify config content
+        config = load_config()
+        assert config["default"]["SrcDir"] is True
+        assert config["default"]["Formatter"]["style"] == "blue"
+
+    @patch("juliapkgtemplates.cli.JuliaPackageGenerator")
+    def test_create_with_argumentless_plugin_config(
+        self, mock_gen, cli_runner, temp_dir, isolated_config
+    ):
+        """Test create command loads argumentless plugin from config"""
+        # Set up config with argumentless plugin
+        cli_runner.invoke(
+            config_cmd,
+            ["set", "--config-file", str(isolated_config), "--srcdir"],
+        )
+
+        # Mock generator
+        mock_instance = Mock()
+        mock_instance.create_package.return_value = temp_dir / "TestPackage"
+        mock_gen.return_value = mock_instance
+
+        # Create package
+        result = cli_runner.invoke(create, ["TestPackage", "--author", "Test Author"])
+
+        assert result.exit_code == 0
+
+        # Verify SrcDir plugin was enabled
+        mock_instance.create_package.assert_called_once()
+        call_args = mock_instance.create_package.call_args
+        package_config = call_args[0][5]  # PackageConfig parameter
+
+        assert "SrcDir" in package_config.enabled_plugins
+        assert package_config.plugin_options["SrcDir"] == {}
+
+
+class TestMultipleAuthors:
+    """Test unified author handling supporting both single and multiple authors
+
+    Design rationale: These tests verify the unified author interface that replaced
+    the separate --authors option, ensuring backward compatibility while providing
+    more intuitive user experience through consistent --author option usage.
+    """
+
+    def test_create_with_multiple_author_options(
+        self, cli_runner, temp_dir, mock_subprocess
+    ):
+        """Test create command with multiple --author options
+
+        Verifies that multiple --author options are properly parsed and passed
+        as a list to the generator, maintaining the unified author interface.
+        """
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--author",
+                    "Author One",
+                    "--author",
+                    "Author Two <author2@example.com>",
+                    "--author",
+                    "Author Three",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify multiple authors are passed correctly
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 3
+            assert "Author One" in authors_arg
+            assert "Author Two <author2@example.com>" in authors_arg
+            assert "Author Three" in authors_arg
+
+    def test_create_with_comma_separated_authors(
+        self, cli_runner, temp_dir, mock_subprocess
+    ):
+        """Test create command with comma-separated authors in single --author option
+
+        Validates the flexible parsing that allows users to specify multiple authors
+        within a single --author option using comma separation for convenience.
+        """
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--author",
+                    "Author One, Author Two <author2@example.com>, Author Three",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify comma-separated authors are parsed correctly
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 3
+            assert "Author One" in authors_arg
+            assert "Author Two <author2@example.com>" in authors_arg
+            assert "Author Three" in authors_arg
+
+    def test_single_author_option_converted_to_list(
+        self, cli_runner, temp_dir, mock_subprocess
+    ):
+        """Test that single --author is converted to list format"""
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--author",
+                    "Single Author",
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify single author is passed as list
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 1
+            assert authors_arg[0] == "Single Author"
+
+    def test_config_file_author_array_support(
+        self, cli_runner, temp_dir, temp_config_dir, mock_subprocess
+    ):
+        """Test config file support for author array
+
+        Ensures backward compatibility with existing config files that store
+        multiple authors as arrays under the 'author' key.
+        """
+        config_file = temp_config_dir / "config.toml"
+        with config_file.open("w", encoding="utf-8") as f:
+            f.write(
+                "[default]\n"
+                'author = ["Config Author One", "Config Author Two <author2@example.com>"]\n'
+                'license_type = "MIT"\n'
+            )
+
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--config-file",
+                    str(config_file),
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+                env={"XDG_CONFIG_HOME": str(temp_config_dir.parent)},
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify config authors are used correctly
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 2
+            assert "Config Author One" in authors_arg
+            assert "Config Author Two <author2@example.com>" in authors_arg
+
+    def test_config_file_author_comma_separated_string(
+        self, cli_runner, temp_dir, temp_config_dir, mock_subprocess
+    ):
+        """Test config file support for comma-separated author string
+
+        Validates flexible config file format supporting comma-separated authors
+        in string format, providing users multiple ways to specify authors.
+        """
+        config_file = temp_config_dir / "config.toml"
+        with config_file.open("w", encoding="utf-8") as f:
+            f.write(
+                "[default]\n"
+                'author = "Author One, Author Two <author2@example.com>, Author Three"\n'
+                'license_type = "MIT"\n'
+            )
+
+        with patch("juliapkgtemplates.cli.JuliaPackageGenerator") as mock_gen:
+            mock_instance = Mock()
+            mock_instance.create_package.return_value = temp_dir / "TestPackage.jl"
+            mock_gen.return_value = mock_instance
+
+            result = cli_runner.invoke(
+                create,
+                [
+                    "TestPackage",
+                    "--config-file",
+                    str(config_file),
+                    "--output-dir",
+                    str(temp_dir),
+                ],
+                env={"XDG_CONFIG_HOME": str(temp_config_dir.parent)},
+            )
+
+            assert result.exit_code == 0
+            mock_instance.create_package.assert_called_once()
+
+            # Verify comma-separated authors are parsed correctly
+            call_args = mock_instance.create_package.call_args
+            authors_arg = call_args[0][1]  # authors argument (position 1)
+            assert isinstance(authors_arg, list)
+            assert len(authors_arg) == 3
+            assert "Author One" in authors_arg
+            assert "Author Two <author2@example.com>" in authors_arg
+            assert "Author Three" in authors_arg
 
 
 class TestMainCommand:

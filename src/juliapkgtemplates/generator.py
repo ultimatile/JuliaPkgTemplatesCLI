@@ -7,7 +7,7 @@ import re
 import subprocess
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Union
 
 from jinja2 import Environment, FileSystemLoader
 
@@ -221,9 +221,7 @@ class JuliaPackageGenerator:
         """Generic plugin builder that handles any plugin with special License processing"""
         if plugin_name == "License":
             # License requires special mapping logic for user-friendly aliases
-            license_plugin_options = (
-                {"License": plugin_options} if plugin_options else None
-            )
+            license_plugin_options = {"License": plugin_options or {}}
             return self._build_license_plugin_special(
                 license_type, license_plugin_options
             )
@@ -234,7 +232,11 @@ class JuliaPackageGenerator:
         option_strings = []
         for key, value in plugin_options.items():
             if isinstance(value, str):
-                option_strings.append(f'{key}="{value}"')
+                # Special handling for ProjectFile version parameter
+                if plugin_name == "ProjectFile" and key == "version":
+                    option_strings.append(f'{key}=v"{value}"')
+                else:
+                    option_strings.append(f'{key}="{value}"')
             elif isinstance(value, bool):
                 option_strings.append(f"{key}={str(value).lower()}")
             elif isinstance(value, list):
@@ -258,6 +260,8 @@ class JuliaPackageGenerator:
     ) -> Optional[str]:
         """Create License plugin with full support for all License plugin parameters"""
         license_options = {}
+        license_config = (plugin_options or {}).get("License")
+        license_explicitly_enabled = license_config is not None
 
         # Support legacy license_type parameter for backward compatibility
         if license_type:
@@ -265,15 +269,16 @@ class JuliaPackageGenerator:
             license_options["name"] = mapped_license
 
         # Plugin options take precedence to allow override of legacy parameter
-        if plugin_options and "License" in plugin_options:
-            options = plugin_options["License"]
-            for key, value in options.items():
+        if license_explicitly_enabled and license_config is not None:
+            for key, value in license_config.items():
                 if key == "name":
                     license_options["name"] = self._map_license(value)
                 else:
                     license_options[key] = value
 
         if not license_options:
+            if license_explicitly_enabled:
+                return "License()"
             return None
 
         option_strings = []
@@ -288,7 +293,7 @@ class JuliaPackageGenerator:
     def create_package(
         self,
         package_name: str,
-        author: Optional[str],
+        author: Optional[Union[str, List[str]]],
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
@@ -300,7 +305,7 @@ class JuliaPackageGenerator:
 
         Args:
             package_name: Name of the package
-            author: Author name
+            author: Author name(s) - can be a string or list of strings
             user: Git hosting username
             mail: Email address
             output_dir: Directory where package will be created
@@ -344,7 +349,7 @@ class JuliaPackageGenerator:
     def generate_julia_code(
         self,
         package_name: str,
-        author: Optional[str],
+        author: Optional[Union[str, List[str]]],
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
@@ -355,7 +360,7 @@ class JuliaPackageGenerator:
 
         Args:
             package_name: Name of the package
-            author: Author name
+            author: Author name(s) - can be a string or list of strings
             user: Git hosting username
             mail: Email address
             output_dir: Directory where package would be created
@@ -411,7 +416,7 @@ class JuliaPackageGenerator:
     def _generate_julia_template_code(
         self,
         package_name: str,
-        author: Optional[str],
+        author: Optional[Union[str, List[str]]],
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
@@ -421,9 +426,22 @@ class JuliaPackageGenerator:
         """Generate Julia Template function code for visualization using Jinja2 template"""
         # Generate Julia code using the same Jinja2 template
         template = self.jinja_env.get_template("julia_template.j2")
+
+        # Normalize authors parameter to list format for template consistency
+        # Supports both legacy single author and new multiple authors functionality
+        if isinstance(author, list):
+            authors_list = author
+        elif author is not None:
+            authors_list = [author]
+        else:
+            authors_list = None
+
         julia_code = template.render(
             package_name=package_name,
-            author=author,
+            authors=authors_list,
+            author=authors_list[0]
+            if authors_list
+            else None,  # Legacy single author field for template compatibility
             user=user,
             mail=mail,
             output_dir=str(output_dir),
@@ -436,7 +454,7 @@ class JuliaPackageGenerator:
     def _call_julia_generator(
         self,
         package_name: str,
-        author: Optional[str],
+        author: Optional[Union[str, List[str]]],
         user: Optional[str],
         mail: Optional[str],
         output_dir: Path,
@@ -447,9 +465,22 @@ class JuliaPackageGenerator:
         """Execute PkgTemplates.jl package generation via Jinja2 template"""
         # Generate Julia code using Jinja2 template
         template = self.jinja_env.get_template("julia_template.j2")
+
+        # Normalize authors parameter to list format for template consistency
+        # Supports both legacy single author and new multiple authors functionality
+        if isinstance(author, list):
+            authors_list = author
+        elif author is not None:
+            authors_list = [author]
+        else:
+            authors_list = None
+
         julia_code = template.render(
             package_name=package_name,
-            author=author,
+            authors=authors_list,
+            author=authors_list[0]
+            if authors_list
+            else None,  # Legacy single author field for template compatibility
             user=user,
             mail=mail,
             output_dir=str(output_dir),

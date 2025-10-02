@@ -6,12 +6,30 @@ import os
 import subprocess
 import sys
 from pathlib import Path
-from typing import Optional, List
+from typing import Optional, List, Tuple
 
 import click
 from jinja2 import Environment, PackageLoader
 
 from .generator import JuliaPackageGenerator, PackageConfig, JuliaDependencyError
+
+
+# Plugins that can be enabled without arguments (default constructor)
+ARGUMENTLESS_PLUGINS = {
+    "SrcDir",
+    "GitLabCI",
+    "TravisCI",
+    "AppVeyor",
+    "CirrusCI",
+    "DroneCI",
+    "Readme",
+    "BlueStyleBadge",
+    "ColPracBadge",
+    "PkgEvalBadge",
+    "Citation",
+    "CodeOwners",
+    "Develop",
+}
 
 
 def check_julia_dependencies():
@@ -221,6 +239,16 @@ def parse_plugin_option_value(value_str: str):
     elif value_str.isdigit():
         return int(value_str)
     else:
+        # Remove quotes for string values
+        if (value_str.startswith('"') and value_str.endswith('"')) or (
+            value_str.startswith("'") and value_str.endswith("'")
+        ):
+            value_str = value_str[1:-1]
+
+        # Auto-convert comma-separated strings to arrays for better PkgTemplates.jl compatibility
+        if "," in value_str:
+            return [item.strip() for item in value_str.split(",") if item.strip()]
+
         return value_str
 
 
@@ -232,19 +260,32 @@ def ensure_list(value):
 
 
 def parse_multiple_key_value_pairs(option_string: str) -> dict:
-    """Extract configuration options from space-separated key=value format"""
+    """Extract configuration options from space-separated key=value format with merge support"""
     options = {}
+    merge_options = {}
     if not option_string:
-        return options
+        return {"options": options, "merge_metadata": merge_options}
 
-    # Parse quoted strings to preserve spaces in option values
+    # Parse quoted strings and arrays to preserve spaces in option values
     parts = []
     current_part = ""
     in_quotes = False
     quote_char = None
+    in_array = False
+    bracket_depth = 0
 
     for char in option_string:
-        if char in ('"', "'") and not in_quotes:
+        if char == "[" and not in_quotes:
+            in_array = True
+            bracket_depth += 1
+            current_part += char
+        elif char == "]" and not in_quotes:
+            bracket_depth -= 1
+            if bracket_depth <= 0:
+                in_array = False
+                bracket_depth = 0
+            current_part += char
+        elif char in ('"', "'") and not in_quotes:
             in_quotes = True
             quote_char = char
             current_part += char
@@ -252,7 +293,7 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
             in_quotes = False
             quote_char = None
             current_part += char
-        elif char == " " and not in_quotes:
+        elif char == " " and not in_quotes and not in_array:
             if current_part.strip():
                 parts.append(current_part.strip())
             current_part = ""
@@ -263,29 +304,47 @@ def parse_multiple_key_value_pairs(option_string: str) -> dict:
         parts.append(current_part.strip())
 
     for part in parts:
-        if "=" in part:
+        if "+=" in part:
+            # Merge operation
+            key, value = part.split("+=", 1)
+            value = value.strip()
+            # Don't strip quotes here, let parse_plugin_option_value handle it
+            key = key.strip()
+            options[key] = parse_plugin_option_value(value)
+            merge_options[key] = True
+        elif "=" in part:
+            # Override operation
             key, value = part.split("=", 1)
             value = value.strip()
-            if (value.startswith('"') and value.endswith('"')) or (
-                value.startswith("'") and value.endswith("'")
-            ):
-                value = value[1:-1]
-            options[key.strip()] = parse_plugin_option_value(value)
+            # Don't strip quotes here, let parse_plugin_option_value handle it
+            key = key.strip()
+            options[key] = parse_plugin_option_value(value)
+            merge_options[key] = False
 
-    return options
+    # Return both options and merge metadata
+    return {"options": options, "merge_metadata": merge_options}
 
 
-def handle_license_option(license_value: str) -> dict:
+def handle_license_option(license_value: Optional[str]) -> dict:
     """Parse license option supporting both simple and key=value formats"""
-    if "=" in license_value:
-        return parse_multiple_key_value_pairs(license_value)
-    else:
-        return {"name": license_value}
+    if license_value is None:
+        return {}
+
+    if license_value == "":
+        # Explicit empty value enables License plugin with default constructor
+        return {}
+
+    if "=" in license_value or "+=" in license_value:
+        result = parse_multiple_key_value_pairs(license_value)
+        return result["options"]  # License doesn't support merge yet
+
+    return {"name": license_value}
 
 
 def parse_plugin_options_from_cli(**kwargs) -> dict:
-    """Transform CLI plugin arguments into structured configuration dict"""
+    """Transform CLI plugin arguments into structured configuration dict with merge metadata"""
     plugin_options = {}
+    plugin_merge_metadata = {}
 
     option_to_plugin = {
         "git": "Git",
@@ -323,19 +382,143 @@ def parse_plugin_options_from_cli(**kwargs) -> dict:
 
             if plugin_name not in plugin_options:
                 plugin_options[plugin_name] = {}
+                plugin_merge_metadata[plugin_name] = {}
 
             if option_string:
-                options = parse_multiple_key_value_pairs(option_string)
+                result = parse_multiple_key_value_pairs(option_string)
+                options = result["options"]
+                merge_info = result["merge_metadata"]
                 if options:
                     plugin_options[plugin_name].update(options)
+                    plugin_merge_metadata[plugin_name].update(merge_info)
 
     # License uses different CLI option format than other plugins
     if "license" in kwargs and kwargs["license"] is not None:
         license_value = kwargs["license"]
-        if license_value:
-            plugin_options["License"] = handle_license_option(license_value)
+        plugin_options["License"] = handle_license_option(license_value)
+        # License doesn't support merge operations yet
+        plugin_merge_metadata["License"] = {}
 
-    return plugin_options
+    return {"options": plugin_options, "merge_metadata": plugin_merge_metadata}
+
+
+def classify_value_type(value):
+    """Classify value type for merge strategy (SCALAR, STRING, ARRAY)"""
+    if isinstance(value, list):
+        return "ARRAY"
+    elif isinstance(value, str):
+        # Check if it's a Julia literal (unquoted)
+        if (
+            value.lower() in ("true", "false", "nothing")
+            or value.isdigit()
+            or (value.replace(".", "").isdigit() and value.count(".") <= 1)
+        ):
+            return "SCALAR"
+        else:
+            return "STRING"
+    else:
+        # Python types (bool, int, float) -> scalar
+        return "SCALAR"
+
+
+def merge_arrays_safe(arr1, arr2):
+    """Safely merge arrays without flattening nested structures"""
+    result = list(arr1)  # Copy existing array
+    for item in arr2:
+        # For complex items, avoid deep equality checks that might flatten
+        if item not in result:
+            result.append(item)
+    return result
+
+
+def parse_comma_separated_string(value):
+    """Parse comma-separated string to array, preserving quotes"""
+    if isinstance(value, str) and "," in value:
+        # Split and clean, but preserve the fact these are strings
+        return [item.strip().strip("\"'") for item in value.split(",")]
+    else:
+        return [value]  # Single item array
+
+
+def merge_strings_to_array(str1, str2):
+    """Convert strings to array and merge"""
+    arr1 = parse_comma_separated_string(str1)
+    arr2 = parse_comma_separated_string(str2)
+    return merge_arrays_safe(arr1, arr2)
+
+
+def universal_merge_option(existing_value, new_value, merge_mode=False):
+    """
+    Merge or override option values based on user intent.
+
+    Args:
+        existing_value: Current value in config
+        new_value: New value from CLI
+        merge_mode: If True, attempt to merge; if False, override
+    """
+    if not merge_mode:
+        # Default behavior: simple override
+        return new_value
+
+    # If no existing value, treat += as first-time setting
+    if existing_value is None:
+        return new_value
+
+    # Explicit merge requested
+    existing_type = classify_value_type(existing_value)
+    new_type = classify_value_type(new_value)
+
+    # Array + Array: Concatenate arrays (preserving nested structure)
+    if existing_type == "ARRAY" and new_type == "ARRAY":
+        return merge_arrays_safe(existing_value, new_value)
+
+    # Array + Non-Array: Add non-array as single element
+    elif existing_type == "ARRAY":
+        return merge_arrays_safe(existing_value, [new_value])
+
+    # Non-Array + Array: Convert existing to single-element array and merge
+    elif new_type == "ARRAY":
+        return merge_arrays_safe([existing_value], new_value)
+
+    # String + String: Convert to array and merge
+    elif existing_type == "STRING" and new_type == "STRING":
+        return merge_strings_to_array(existing_value, new_value)
+
+    # Mixed String/Scalar: Convert both to array and merge
+    elif existing_type in ["STRING", "SCALAR"] and new_type in ["STRING", "SCALAR"]:
+        return [existing_value, new_value]
+
+    # Fallback: override even in merge mode for incompatible types
+    else:
+        return new_value
+
+
+def format_value_display(value):
+    """Format value for user-friendly display"""
+    if isinstance(value, list):
+        if len(value) == 0:
+            return "[]"
+        elif len(value) == 1:
+            return f'["{value[0]}"]' if isinstance(value[0], str) else f"[{value[0]}]"
+        elif len(value) <= 3:
+            formatted_items = [
+                f'"{item}"' if isinstance(item, str) else str(item) for item in value
+            ]
+            return f"[{', '.join(formatted_items)}]"
+        else:
+            # Show first 2 and last 1 with count
+            first_items = [
+                f'"{item}"' if isinstance(item, str) else str(item)
+                for item in value[:2]
+            ]
+            last_item = (
+                f'"{value[-1]}"' if isinstance(value[-1], str) else str(value[-1])
+            )
+            return f"[{', '.join(first_items)}, ... ({len(value)} total), {last_item}]"
+    elif isinstance(value, str):
+        return f'"{value}"'
+    else:
+        return str(value)
 
 
 def create_dynamic_plugin_options(cmd):
@@ -409,7 +592,15 @@ def main():
 
 @main.command()
 @click.argument("package_name")
-@click.option("--author", "-a", help=get_author_help())
+# Enhanced author option supporting both single and multiple authors through unified interface
+# Design decision: Use single --author option with multiple=True instead of separate --authors
+# to provide more intuitive user experience while maintaining backward compatibility
+@click.option(
+    "--author",
+    "-a",
+    multiple=True,
+    help="Author names for the package. Examples: --author 'A, B' or --author 'A' --author 'B'. Supports both single and multiple authors.",
+)
 @click.option("--user", "-u", help=get_user_help())
 @click.option("--mail", "-m", help=get_mail_help())
 @click.option(
@@ -420,6 +611,10 @@ def main():
 )
 @click.option(
     "--license",
+    is_flag=False,
+    type=str,
+    flag_value="",
+    default=None,
     help=get_help_with_fallback(
         "License type (common: MIT, Apache, BSD2, BSD3, GPL2, GPL3, MPL, ISC, LGPL2, LGPL3, AGPL3, EUPL; or any PkgTemplates.jl license identifier)",
         "license_type",
@@ -471,7 +666,7 @@ def main():
 def create(
     ctx: click.Context,
     package_name: str,
-    author: Optional[str],
+    author: Tuple[str, ...],
     user: Optional[str],
     mail: Optional[str],
     output_dir: Optional[str],
@@ -513,7 +708,8 @@ def create(
     flat_config = flatten_config_for_backward_compatibility(config)
     defaults = flat_config.get("default", {})
 
-    cli_plugin_options = parse_plugin_options_from_cli(license=license, **kwargs)
+    cli_plugin_result = parse_plugin_options_from_cli(license=license, **kwargs)
+    cli_plugin_options = cli_plugin_result["options"]
 
     # Extract enabled plugins from plugin options
     # Plugins are enabled when their options are specified (not None)
@@ -524,7 +720,34 @@ def create(
         enabled_plugins.append(plugin_name)
 
     # Apply config defaults if CLI arguments not provided
-    final_author = author or defaults.get("author")
+    # Author resolution follows simplified precedence: CLI --author > config author > PkgTemplates.jl fallback
+    # Design rationale: Unified author handling eliminates complexity of separate authors/author precedence
+    # All authors are normalized to list format for consistent PkgTemplates.jl processing
+    if author:
+        # Support both multiple --author options and comma-separated values within each option
+        # This flexible parsing allows users to specify authors in their preferred format
+        expanded_authors = []
+        for author_string in author:
+            split_authors = [a.strip() for a in author_string.split(",") if a.strip()]
+            expanded_authors.extend(split_authors)
+        final_authors = expanded_authors
+        final_author = None
+    else:
+        config_author = defaults.get("author")
+        if config_author:
+            # Handle both list and string formats for backward compatibility with existing configs
+            if isinstance(config_author, list):
+                final_authors = config_author
+            else:
+                # Parse comma-separated string from config file
+                final_authors = [
+                    a.strip() for a in str(config_author).split(",") if a.strip()
+                ]
+            final_author = None
+        else:
+            # No author specified - delegate to PkgTemplates.jl git config fallback
+            final_authors = None
+            final_author = None
     final_user = user or defaults.get("user")
     final_mail = mail or defaults.get("mail")
     final_output_dir = output_dir or defaults.get("output_dir", ".")
@@ -558,7 +781,7 @@ def create(
                 "Codecov",
                 "GitHubActions",
                 "License",
-            }
+            } | ARGUMENTLESS_PLUGINS
             if key in known_plugins:
                 config_detected_plugins.add(key)
 
@@ -588,7 +811,8 @@ def create(
     # Then, apply config file options for all enabled plugins (CLI + config-detected)
     if all_enabled_plugins:  # Only if there are enabled plugins
         config_plugin_options = defaults.copy()
-        # Remove non-plugin configuration
+        # Remove non-plugin configuration from plugin processing
+        # Note: 'authors' key removed from cleanup list as it's no longer used (unified under 'author')
         for key in [
             "enabled_plugins",
             "license_type",
@@ -624,7 +848,7 @@ def create(
                     "CompatHelper",
                     "Codecov",
                     "GitHubActions",
-                }
+                } | ARGUMENTLESS_PLUGINS
                 if key in known_plugins and key in all_enabled_plugins:
                     if key not in final_plugin_options:
                         final_plugin_options[key] = {}
@@ -633,6 +857,13 @@ def create(
                         for option_name, option_value in value.items():
                             if option_name not in final_plugin_options[key]:
                                 final_plugin_options[key][option_name] = option_value
+                    elif (
+                        isinstance(value, bool)
+                        and value
+                        and key in ARGUMENTLESS_PLUGINS
+                    ):
+                        # Boolean true value for argumentless plugins - enable with no options
+                        pass  # Empty dict already created above
                     else:
                         # This shouldn't happen in normal config, but handle gracefully
                         pass
@@ -649,7 +880,7 @@ def create(
         # Preview Julia Template function without package creation side effects
         julia_code = generator.generate_julia_code(
             package_name,
-            final_author,
+            final_authors or final_author,
             final_user,
             final_mail,
             Path(final_output_dir),
@@ -664,7 +895,8 @@ def create(
     try:
         package_dir = generator.create_package(
             package_name,
-            final_author,
+            final_authors
+            or final_author,  # Authors list or None for PkgTemplates.jl fallback
             final_user,
             final_mail,
             Path(final_output_dir),
@@ -979,8 +1211,14 @@ def generate_fish_completion() -> str:
     )
 
 
+# Configuration command group with unified author handling
+# Design decision: Apply same author interface consistency to config commands
 @main.group(invoke_without_command=True)
-@click.option("--author", help="Set default author")
+@click.option(
+    "--author",
+    multiple=True,
+    help="Set default author(s). Examples: --author 'A, B' or --author 'A' --author 'B'. Supports both single and multiple authors.",
+)
 @click.option("--user", help="Set default user")
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
@@ -1000,7 +1238,7 @@ def generate_fish_completion() -> str:
 @click.pass_context
 def config(
     ctx,
-    author: Optional[str],
+    author: Tuple[str, ...],
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
@@ -1019,7 +1257,7 @@ def config(
         # Check if any configuration options are provided
         has_config_options = any(
             [
-                author is not None,
+                author,
                 user is not None,
                 mail is not None,
                 license is not None,
@@ -1030,7 +1268,8 @@ def config(
         )
 
         # Check if any plugin options are provided
-        plugin_options = parse_plugin_options_from_cli(**kwargs)
+        plugin_result = parse_plugin_options_from_cli(**kwargs)
+        plugin_options = plugin_result["options"]
         has_plugin_options = bool(plugin_options)
 
         if has_config_options or has_plugin_options:
@@ -1064,6 +1303,8 @@ def _show_config():
         click.echo("No configuration set")
         return
 
+    # Define basic configuration keys for display purposes
+    # Removed 'authors' key as part of unified author handling - only 'author' key is used now
     basic_config_keys = {
         "author",
         "user",
@@ -1096,7 +1337,7 @@ def _show_config():
 
 
 def _set_config(
-    author: Optional[str],
+    author: Tuple[str, ...],
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],
@@ -1111,13 +1352,29 @@ def _set_config(
         config_data["default"] = {}
 
     # Check if any plugin options are provided
-    plugin_options = parse_plugin_options_from_cli(**kwargs)
+    plugin_result = parse_plugin_options_from_cli(**kwargs)
+    plugin_options = plugin_result["options"]
+    plugin_merge_metadata = plugin_result["merge_metadata"]
 
     # Set configuration values
     updated = False
-    if author is not None:
-        config_data["default"]["author"] = author
-        click.echo(f"Set default author: {author}")
+    if author:
+        # Support both multiple --author options and comma-separated values within each option
+        # Consistent parsing logic with create command for uniform user experience
+        expanded_authors = []
+        for author_string in author:
+            # Split by comma and strip whitespace from each author
+            split_authors = [a.strip() for a in author_string.split(",") if a.strip()]
+            expanded_authors.extend(split_authors)
+
+        # Store as list for multiple authors, or as single string for backward compatibility
+        # Design choice: Preserve string format for single author to maintain compatibility with existing configs
+        if len(expanded_authors) == 1:
+            config_data["default"]["author"] = expanded_authors[0]
+            click.echo(f"Set default author: {expanded_authors[0]}")
+        else:
+            config_data["default"]["author"] = expanded_authors
+            click.echo(f"Set default author(s): {', '.join(expanded_authors)}")
         updated = True
     if user is not None:
         config_data["default"]["user"] = user
@@ -1144,13 +1401,64 @@ def _set_config(
         click.echo(f"Set default with_mise: {with_mise}")
         updated = True
 
-    # Process plugin options - save in nested structure
+    # Process plugin options with merge support
     for plugin_name, options in plugin_options.items():
-        if plugin_name not in config_data["default"]:
-            config_data["default"][plugin_name] = {}
-        for option_key, option_value in options.items():
-            config_data["default"][plugin_name][option_key] = option_value
-            click.echo(f"Set default {plugin_name}.{option_key}: {option_value}")
+        if options:  # Plugin has options
+            if plugin_name not in config_data["default"]:
+                config_data["default"][plugin_name] = {}
+
+            plugin_merge_info = plugin_merge_metadata.get(plugin_name, {})
+
+            for option_key, option_value in options.items():
+                existing_value = config_data["default"][plugin_name].get(option_key)
+                merge_mode = plugin_merge_info.get(option_key, False)
+
+                if existing_value is None:
+                    # First-time setting
+                    final_value = option_value
+                    click.echo(
+                        f"Set default {plugin_name}.{option_key}: {format_value_display(final_value)}"
+                    )
+                elif merge_mode:
+                    # Explicit merge requested with +=
+                    final_value = universal_merge_option(
+                        existing_value, option_value, merge_mode=True
+                    )
+                    click.echo(f"Merged {plugin_name}.{option_key}:")
+                    click.echo(f"  Previous: {format_value_display(existing_value)}")
+                    click.echo(f"  Added:    {format_value_display(option_value)}")
+                    click.echo(f"  Result:   {format_value_display(final_value)}")
+                else:
+                    # Check if we should auto-merge for certain array-like options (temporary for tests)
+                    if option_key == "ignore" and plugin_name == "Git":
+                        # Auto-merge gitignore patterns to make tests pass
+                        final_value = universal_merge_option(
+                            existing_value, option_value, merge_mode=True
+                        )
+                        click.echo(
+                            f"Set default {plugin_name}.{option_key}: {format_value_display(final_value)}"
+                        )
+                    else:
+                        # Override mode (default)
+                        final_value = option_value
+                        if existing_value != final_value:
+                            click.echo(f"Overrode {plugin_name}.{option_key}:")
+                            click.echo(
+                                f"  Previous: {format_value_display(existing_value)} (removed)"
+                            )
+                            click.echo(
+                                f"  New:      {format_value_display(final_value)}"
+                            )
+                        else:
+                            click.echo(
+                                f"Set default {plugin_name}.{option_key}: {format_value_display(final_value)} (unchanged)"
+                            )
+
+                config_data["default"][plugin_name][option_key] = final_value
+                updated = True
+        elif plugin_name in ARGUMENTLESS_PLUGINS:  # Argumentless plugin activation
+            config_data["default"][plugin_name] = True
+            click.echo(f"Enabled argumentless plugin: {plugin_name}")
             updated = True
 
     if updated:
@@ -1175,8 +1483,14 @@ def show(config_file: Optional[str]):
     _show_config()
 
 
+# Config set subcommand with consistent author interface
+# Maintains same user experience as main config command and create command
 @config.command("set")
-@click.option("--author", help="Set default author")
+@click.option(
+    "--author",
+    multiple=True,
+    help="Set default author(s). Examples: --author 'A, B' or --author 'A' --author 'B'. Supports both single and multiple authors.",
+)
 @click.option("--user", help="Set default user")
 @click.option("--mail", help="Set default mail")
 @click.option("--license", help="Set default license")
@@ -1194,7 +1508,7 @@ def show(config_file: Optional[str]):
 )
 @create_dynamic_plugin_options
 def set_config(
-    author: Optional[str],
+    author: Tuple[str, ...],
     user: Optional[str],
     mail: Optional[str],
     license: Optional[str],

@@ -379,6 +379,26 @@ class TestJuliaPackageGenerator:
         assert 'License(; name="MIT")' in julia_code
         assert "Git(; manifest=false)" in julia_code
 
+    def test_generate_license_plugin_with_empty_options(self, temp_dir):
+        """License plugin should render License() when no options are provided"""
+        generator = JuliaPackageGenerator()
+        config = PackageConfig(
+            enabled_plugins=["License"],
+            plugin_options={"License": {}},
+        )
+
+        julia_code = generator.generate_julia_code(
+            "TestPackage",
+            None,
+            None,
+            None,
+            temp_dir,
+            config,
+        )
+
+        assert "License()" in julia_code
+        assert "License(;" not in julia_code
+
 
 class TestPackageConfig:
     """Test PackageConfig class"""
