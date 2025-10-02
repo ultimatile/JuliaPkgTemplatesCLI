@@ -305,7 +305,7 @@ class JuliaPackageGenerator:
 
         Args:
             package_name: Name of the package
-            author: Author name(s) - can be a string or list of strings(s) - can be a string or list of strings
+            author: Author name(s) - can be a string or list of strings
             user: Git hosting username
             mail: Email address
             output_dir: Directory where package will be created
