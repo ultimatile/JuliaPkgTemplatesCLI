@@ -80,8 +80,16 @@ jtc create MyPackage.jl
 # Create a package with specific author and output directory
 jtc create MyPackage.jl --user "Your Name" --output-dir ~/projects
 
+# Create a package with multiple authors
+jtc create MyPackage.jl --author "Author One" --author "Author Two <author2@example.com>"
+# Or using comma-separated format
+jtc create MyPackage.jl --author "Author One, Author Two"
+
 # Create a package with specific license and plugins
 jtc create MyPackage.jl --license Apache --formatter style=sciml --git ssh=true
+
+# Create a package with default license (enables License plugin without arguments)
+jtc create MyPackage.jl --license
 
 # Create a package without mise integration
 jtc create MyPackage.jl --no-mise
@@ -181,6 +189,45 @@ Each plugin supports various configuration options that can be set via:
 
 - Command line: `jtc create MyPkg --formatter style=blue --git ssh=true`
 - Configuration file: Set default options in `~/.config/jtc/config.toml`
+
+#### Argument-less Plugins
+
+Some plugins can be enabled without any arguments using a simple flag:
+
+```bash
+# Enable SrcDir plugin
+jtc create MyPackage.jl --srcdir
+
+# Enable multiple argument-less plugins
+jtc create MyPackage.jl --srcdir --readme --citation
+
+# Set in configuration
+jtc config set --srcdir --gitlabci
+```
+
+Supported argument-less plugins: `SrcDir`, `GitLabCI`, `TravisCI`, `AppVeyor`, `CirrusCI`, `DroneCI`, `Readme`, `BlueStyleBadge`, `ColPracBadge`, `PkgEvalBadge`, `Citation`, `CodeOwners`, `Develop`
+
+#### Plugin Option Merging with "+="
+
+Use the `+=` operator to merge plugin options with existing configuration values instead of overriding them:
+
+```bash
+# Add to existing gitignore patterns (merges with config defaults)
+jtc create MyPackage.jl --git ignore+=["custom_file","*.tmp"]
+
+# Merge formatter options with config defaults
+jtc config set --formatter style=blue
+
+# Set boolean option (no += needed for boolean types)
+jtc config set --git manifest=true
+```
+
+The `+=` operator behavior:
+- **Arrays/Lists**: Appends new values to existing ones
+- **Strings**: Concatenates with existing value
+- **Other types**: Uses the new value if compatible with existing type
+
+Without `+=`, the option value completely replaces the existing configuration.
 
 ### Configuration Location
 
