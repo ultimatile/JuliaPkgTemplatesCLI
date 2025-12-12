@@ -73,6 +73,32 @@ def get_config_file_path() -> Path:
     return app_config_dir / "config.toml"
 
 
+def normalize_plugin_option_values(config: dict) -> dict:
+    """Normalize plugin option values by parsing string representations
+
+    This ensures that manually edited config files with string values like
+    'ignore=".vscode,.DS_Store"' are converted to proper arrays like
+    ["".vscode", ".DS_Store"]. This provides compatibility between:
+    - CLI-set values (already parsed correctly)
+    - Manually edited config files (may use string format)
+    """
+    if "default" not in config:
+        return config
+
+    defaults = config["default"]
+
+    # Process nested plugin configurations [default.PluginName]
+    for key, value in defaults.items():
+        if isinstance(value, dict):
+            # This is a plugin configuration section
+            for option_key, option_value in value.items():
+                # Only process string values (arrays and booleans are already correct)
+                if isinstance(option_value, str):
+                    defaults[key][option_key] = parse_plugin_option_value(option_value)
+
+    return config
+
+
 def load_config() -> dict:
     """Load configuration from config.toml"""
     config_path = get_config_file_path()
@@ -84,6 +110,8 @@ def load_config() -> dict:
 
             with open(config_path, "rb") as f:
                 config = tomllib.load(f)
+                # Normalize plugin option values for manually edited configs
+                config = normalize_plugin_option_values(config)
         except Exception as e:
             click.echo(
                 f"Warning: Error loading config file {config_path}: {e}", err=True
